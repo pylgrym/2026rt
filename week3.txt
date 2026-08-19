@@ -1,0 +1,22 @@
+https://rogueliketutorials.com/tutorials/tcod/v2/part-5/
+
+PLACE the monsters first, 
+possibly as N random picks
+from the list of free cells.
+
+STORE them.
+
+DRAW them.
+
+BLOCK (with) them.
+
+MOVE them.
+
+let them ATTACK-ish.
+
+let US "attack" them.
+
+log/show them 'attacking'.
+
+(kick,insult, msg).
+

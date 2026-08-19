@@ -1,0 +1,19 @@
+{
+  "name": "2026rt",
+  "version": "1.0.0",
+  "description": "Foundations of a roguelike built with rot.js, TypeScript and Parcel.",
+  "source": "src/index.html",
+  "scripts": {
+    "start": "parcel",
+    "build": "parcel build --public-url ./ --no-source-maps"
+  },
+  "dependencies": {
+    "rot-js": "^2.2.1"
+  },
+  "devDependencies": {
+    "parcel": "^2.16.4",
+    "parcel-namer-flat": "file:./parcel-namer-flat",
+    "process": "^0.11.10",
+    "typescript": "^5.5.4"
+  }
+}

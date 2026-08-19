@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="index0.css" />
+  </head>
+  <body>
+    <main>
+      <h1>2026rt — Source Overview</h1>
+      <dl>
+
+        <dt><a class="ts-source" href="src/index.ts">index.ts</a></dt>
+        <dd>
+          Entry point. <code>main()</code> wires together
+          <code>Game</code>, <code>Viewport</code>, and game loop.
+        </dd>
+
+        <dt><a class="ts-source" href="src/dmap.ts">dmap.ts</a></dt>
+        <dd>
+          Holds dungeon map data: <code>Tile</code> kinds, 
+          <code>DMap</code> grid class, <code>Point</code> type, and
+          <code>generateDungeon()</code>. Pure map/data.
+        </dd>
+
+        <dt><a class="ts-source" href="src/game.ts">game.ts</a></dt>
+        <dd>
+          <code>Game</code> MODEL, which combines the mutable game state: 
+          map, player's position.
+        </dd>
+
+        <dt><a class="ts-source" href="src/rdisplay.ts">rdisplay.ts</a></dt>
+        <dd>
+          ROT.JS display setup: <code>createDisplay()</code> loads font, builds/mounts rot.js display, 
+          keeps canvas scaled to window.
+        </dd>
+
+        <dt><a class="ts-source" href="src/viewport.ts">viewport.ts</a></dt>
+        <dd>
+          <code>Viewport</code>: owns rot.js display, renders 
+          fixed-size view of dungeon centered on player via
+          <code>draw(game)</code>.
+        </dd>
+
+        <dt><a class="ts-source" href="src/move-player.ts">move-player.ts</a></dt>
+        <dd>
+          "Turn" logic: the key-to-delta <code>MOVEMENT</code> table,
+           <code>movePlayer(game, key)</code>,          
+        </dd>
+
+        <dt><a class="ts-source" href="src/gameloop.ts">gameloop.ts</a></dt>
+        <dd>
+          async input loop: <code>gameLoop(game, viewport)</code> awaits key
+          presses via <code>inputKey()</code>, then redraws when player moves.
+        </dd>
+      </dl>
+    </main>
+    <script src="index0.js"></script>
+
+<a class="BOLD" href="dist/index.html">TRY</a>
+
+  </body>
+</html>

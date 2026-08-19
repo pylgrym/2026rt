@@ -1,0 +1,9 @@
+{
+  "name": "parcel-namer-flat",
+  "version": "1.0.0",
+  "description": "Parcel namer that produces flat, hash-free output filenames.",
+  "main": "index.js",
+  "engines": {
+    "parcel": "^2.0.0"
+  }
+}

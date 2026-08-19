@@ -1,0 +1,23 @@
+ I realize that the cool kids nowadays, link to their "repos",
+so I have made a small source code index page,
+to not feed the AI trolls too well:
+https://xok.dk/other/2026rt/index0.html
+
+for 2+3 - player, render, map(+generation), I mainly cleaned up/structured my typescript effort.
+For the game map model, I did a 2d-grid-of-tilesEnum class (where tiles can only be floor or wall so far.)
+I stuff that, together with player-xy, into a Game model.
+For display/render, I do a viewport render on top of rot.js, which of course
+draws the contents of the Game model.
+The dungeon generation so far is a default pulled directly from ROT.
+To tie it together,
+I then have an async gameloop which awaits keyboard input,
+then dispatches it with the turn-taking code/commands in the 'move-player' module.
+(which at the moment, with no monsters,
+is just the player moving in 4 compass directions.)
+
+The nice thing about async is that you can style/write your code
+in the same way we used to write BASIC games in the 80's, hooray.
+
+The result, where a lonesome @ can roam around a deserted dungeon, is still at
+https://xok.dk/other/2026rt/dist/index.html
+It will be a lot more fun once the monsters show up.. :-) 

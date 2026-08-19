@@ -1,0 +1,13 @@
+hp
+dmg, log
+a HUD with hp 5/15
+end on 0 / below 0.
+msg on death.
+
+------
+irrelevant, corpse ordering issue.
+% corpses at all?
+nmm, pyt has auto enums now?
+
+interesting idea that corpses are still (non-acting) npcs,
+could be used for necro stuff.

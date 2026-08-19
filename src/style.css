@@ -1,0 +1,37 @@
+/* SQUARE — the infamous open source roguelike font. */
+@font-face {
+  font-family: "Square";
+  src: url("./fonts/square.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #161616;
+}
+
+/* Center the game and let it consume all available space. */
+#game {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The rot.js canvas is scaled in JS to fill the viewport while
+   preserving its 32:24 (4:3) aspect ratio. Keep pixels crisp. */
+#game canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}

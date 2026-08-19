@@ -1,0 +1,141 @@
+:root {
+  --bg: #1b1d23;
+  --panel: #23262e;
+  --fg: #e6e6e6;
+  --muted: #9aa0aa;
+  --accent: #7db4ff;
+  --border: #33373f;
+  --mono: "Cascadia Code", "Fira Code", Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 2.5rem 1.5rem;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  line-height: 1.6;
+}
+
+main {
+  width: max-content;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+h1 {
+  margin: 0 0 0.25rem;
+  font-size: 1.8rem;
+}
+
+.lede {
+  margin: 0 0 2rem;
+  color: var(--muted);
+}
+
+dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content max-content;
+  gap: 0.3rem 1rem;
+  align-items: start;
+}
+
+dt {
+  margin: 0;
+  padding-top: 0.35rem;
+}
+
+dt a {
+  font-family: var(--mono);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+dt a:hover,
+dt a:focus {
+  text-decoration: underline;
+}
+
+dd {
+  margin: 0;
+  padding: 0.3rem 0.9rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  color: var(--fg);
+  white-space: nowrap;
+  justify-self: start;
+  line-height: 1.3;
+}
+
+dd code {
+  font-family: var(--mono);
+  font-size: 0.9em;
+  color: var(--accent);
+}
+
+#source-viewer {
+  margin-top: 2rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  overflow: hidden;
+}
+
+#source-viewer header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.4rem 0.75rem;
+  background: #2b2f38;
+  border-bottom: 1px solid var(--border);
+}
+
+#source-viewer .sv-title {
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--accent);
+}
+
+#source-viewer .sv-close {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.25rem;
+}
+
+#source-viewer .sv-close:hover {
+  color: var(--fg);
+}
+
+#source-viewer pre {
+  margin: 0;
+  padding: 0.9rem;
+  max-height: 70vh;
+  overflow: auto;
+}
+
+#source-viewer code {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  color: var(--fg);
+  white-space: pre;
+}
+
+.BOLD {
+    display: inline-block;
+    background: yellow;
+    padding: 0.2rem 0.6rem;
+}
