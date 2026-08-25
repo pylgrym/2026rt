@@ -89,3 +89,21 @@ export function playHurt(): void {
     0.25
   );
 }
+
+/**
+ * A warm, gentle ascending chime — played whenever out-of-combat
+ * regeneration heals the player (see ./ooc-heal.ts).
+ */
+export function playHeal(): void {
+  // Soft ascending major arpeggio (C5, E5, G5, C6) on a mellow sine wave.
+  playTones(
+    [
+      [523.25, 0.00, 0.12],
+      [659.25, 0.05, 0.12],
+      [783.99, 0.10, 0.16],
+      [1046.5, 0.16, 0.22],
+    ],
+    "sine",
+    0.18
+  );
+}

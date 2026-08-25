@@ -1,5 +1,6 @@
 import * as ROT from "rot-js";
 import { initGfx } from "./juice-gfx";
+import { HUD_WIDTH } from "./hud";
 
 /**
  * Creates, configures, and mounts the rot.js display for the game.
@@ -37,7 +38,7 @@ export async function createDisplay(
 
   // Hand the graphics-juice layer the canvas + tile dimensions so it can
   // overlay spark/splatter effects aligned to the terminal grid.
-  initGfx(canvas, width, height);
+  initGfx(canvas, width, height, width - HUD_WIDTH);
 
   fitCanvas(canvas);
   window.addEventListener("resize", () => fitCanvas(canvas));

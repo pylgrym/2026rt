@@ -5,7 +5,9 @@
   "source": "src/index.html",
   "scripts": {
     "start": "parcel",
-    "build": "parcel build --public-url ./ --no-source-maps"
+    "build": "parcel build --public-url ./ --no-source-maps",
+    "typecheck": "tsc --noEmit",
+    "typecheck:watch": "tsc --noEmit --watch"
   },
   "dependencies": {
     "rot-js": "^2.2.1"

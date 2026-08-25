@@ -14,9 +14,16 @@ import type { Pos } from "./dmap";
 
 /** The mounted rot.js canvas we overlay effects on. */
 let canvasEl: HTMLCanvasElement | null = null;
-/** Viewport size in tiles — needed to turn a tile into a screen fraction. */
+/** Full canvas size in tiles — needed to turn a tile into a screen fraction. */
 let tilesWide = 0;
 let tilesHigh = 0;
+/**
+ * Width, in tiles, of the dungeon-view portion of the canvas (i.e.
+ * excluding the HUD columns on the right — see ./hud.ts). The player is
+ * centred within *this* width, not the full canvas width, so effect
+ * positions must be computed relative to it too.
+ */
+let mapTilesWide = 0;
 
 /**
  * Wires the graphics layer to the game canvas. Called once, right after the
@@ -26,11 +33,13 @@ let tilesHigh = 0;
 export function initGfx(
   canvas: HTMLCanvasElement,
   viewportTilesWide: number,
-  viewportTilesHigh: number
+  viewportTilesHigh: number,
+  viewportMapTilesWide: number
 ): void {
   canvasEl = canvas;
   tilesWide = viewportTilesWide;
   tilesHigh = viewportTilesHigh;
+  mapTilesWide = viewportMapTilesWide;
   injectStyles();
 }
 
@@ -47,14 +56,17 @@ interface ScreenSpot {
 
 /**
  * Converts a map-space `target` tile to an on-screen pixel spot, given the
- * `camera` tile that sits at the centre of the viewport (the player). The
- * player is always centred, so screen-tile = target − camera + halfViewport.
+ * `camera` tile that sits at the centre of the dungeon view (the player).
+ * The player is always centred within the dungeon-view columns (which
+ * stop short of the HUD, see ./hud.ts), so screen-tile = target − camera +
+ * halfMapWidth. The pixel conversion below still divides by the *full*
+ * canvas tile width, since that's the actual on-screen scale of one tile.
  */
 function locate(target: Pos, camera: Pos): ScreenSpot | null {
   if (!canvasEl) { return null; }
-  const sx = target.x - camera.x + Math.floor(tilesWide / 2);
+  const sx = target.x - camera.x + Math.floor(mapTilesWide / 2);
   const sy = target.y - camera.y + Math.floor(tilesHigh / 2);
-  if (sx < 0 || sy < 0 || sx >= tilesWide || sy >= tilesHigh) { return null; }
+  if (sx < 0 || sy < 0 || sx >= mapTilesWide || sy >= tilesHigh) { return null; }
 
   const rect = canvasEl.getBoundingClientRect();
   return {

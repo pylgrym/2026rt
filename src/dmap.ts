@@ -1,5 +1,6 @@
 import * as ROT from "rot-js";
 import { MobQ } from "./MobQ";
+import type { T_Mood } from "./mood";
 
 /**
  * Tile kinds for the dungeon map.
@@ -18,7 +19,35 @@ export const Tile = {
   Wall: 1,
   Nest: 2,
   Ply: 3,
-  Rat: 4
+  // Monster levels 1-26, one tile per letter of the alphabet. See
+  // {@link ./mob-factory.ts}'s `MOB_TYPES` for the level -> creature
+  // mapping and ../progression.md for the design behind it.
+  Ant: 4,
+  Bat: 5,
+  Cat: 6,
+  Dog: 7,
+  Eye: 8,
+  Fox: 9,
+  Git: 10,
+  Hog: 11,
+  Imp: 12,
+  Jay: 13,
+  Koi: 14,
+  Loon: 15,
+  Moth: 16,
+  Newt: 17,
+  Orc: 18,
+  Pig: 19,
+  Quail: 20,
+  Rat: 21,
+  Sow: 22,
+  Toad: 23,
+  Urchin: 24,
+  Vole: 25,
+  Wasp: 26,
+  Xerus: 27,
+  Yak: 28,
+  Zebu: 29,
 } as const;
 
 // we should partition these two types.
@@ -30,8 +59,8 @@ export function walkable(tile: T_Tile): boolean {
 }
 
 /** Default map dimensions, in tiles. */
-export const MAP_WIDTH = 80;
-export const MAP_HEIGHT = 60;
+export const MAP_WIDTH = 210;
+export const MAP_HEIGHT = 210;
 
 /**
  * A 2-dimensional grid of {@link Tile}s backed by a single flat array.
@@ -77,6 +106,12 @@ export interface Pos {
 export interface Mob extends Pos {
   t: T_Tile;
   name: string;
+  hp: number;
+  maxhp: number;
+  /** Max damage this mob can deal in one hit; see {@link ../progression.md}. */
+  dmg: number;
+  /** Sleep/wake behaviour state; only monsters use it, the player leaves it `undefined`. See {@link ./mood.ts}. */
+  mood?: T_Mood;
 }
 
 /** True when `mob` is the player. */
@@ -89,7 +124,7 @@ export function isPly(mob: Mob | null): boolean {
  * generator, and returns a sensible spawn point (the centre of the
  * first generated room).
  */
-export function generateDungeon(map: DMap): Pos {
+export function generateDungeon(map: DMap): ReturnType<InstanceType<typeof ROT.Map.Digger>["getRooms"]> {
   const digger = new ROT.Map.Digger(map.width, map.height);
 
   // Reuse one scratch Pos across every cell the generator visits; `set`
@@ -103,7 +138,5 @@ export function generateDungeon(map: DMap): Pos {
     map.set(at, value as T_Tile);
   });
 
-  const rooms = digger.getRooms();
-  const [cx, cy] = rooms[0].getCenter();
-  return { x: cx, y: cy };
+  return digger.getRooms();
 }

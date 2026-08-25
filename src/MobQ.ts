@@ -5,6 +5,10 @@ import { Mob } from "./dmap";
  * through the queue.
  */
 export class MobQ {
+  remove(def: Mob) {
+    const idx = this.mobs.indexOf(def);
+    if (idx >= 0) { this.mobs.splice(idx, 1); } else { console.warn("tried to remove mob not in queue", def,this); }
+  }
   readonly mobs: Mob[] = [];   /** The backing mob list, mutated in place as mobs move. */
   push(...mobs: Mob[]): void { this.mobs.push(...mobs); }   /** Adds one or more mobs to the queue. */
   find(pred: (mob: Mob) => boolean): Mob | undefined { return this.mobs.find(pred); }   /** The first mob matching `pred`, or `undefined` if none do. */

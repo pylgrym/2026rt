@@ -4,6 +4,8 @@ import { Game } from "./game";
 import { inputKey } from "./input";
 import { npcTurn } from "./mobs";
 import { Mob, isPly } from "./dmap";
+import { showGameOver } from "./combat";
+import { tickOocHeal } from "./ooc-heal";
 
 /**
  * Runs the main game loop: waits for a key, resolves the player's and
@@ -37,20 +39,21 @@ export async function doTurns(g:Game):Promise<void> {
     turnLoopInvariants(next,g); 
     await doTurn(next!,g);
     next = Q.rotate();
-  } while (!isPly(next) && !gameOver(g));
+  } while (!isPly(next) && !is_gameOver(g));
 }
 
-// placeholder:
-export function isDead(m: Mob): boolean { return false; }
-export function gameOver(g: Game): boolean { return isDead(g.player); }
+export function isDead(m: Mob): boolean { return m.hp <= 0; }
+export function is_gameOver(g: Game): boolean { return isDead(g.player); }
 
 export async function gameLoop(g: Game, vp: Viewport): Promise<void> {
   while (true) {
     await showAnyMessages(g, vp); // now the round has ended, show any messages to the player:
     vp.draw(g); // now that final message is committed, redraw the game state with it.
-    if (gameOver(g)){break;}
-    await doTurns(g); 
+    if (is_gameOver(g)){break;}
+    await doTurns(g);
+    tickOocHeal(g); // once per round, after the player and every mob has acted.
   }
+  showGameOver(g,vp);
 }
 
 async function showAnyMessages(game: Game, viewport: Viewport) {

@@ -79,10 +79,9 @@ export class MsgQueue {
     this.drawRow(this.finalDisplayMessage, viewport);
   }
 
-  /** Draws `text` across the top row, padded so it overwrites the row. */
+  /** Draws `text` across the top row, first blanking the row it overwrites. */
   private drawRow(text: string, viewport: Viewport): void {
-    const display = viewport.display; 
-    const width = display.getOptions().width;
-    display.drawText(0, 0, text.padEnd(width, " "));
+    viewport.clearRow(0);
+    viewport.display.drawText(0, 0, text);
   }
 }
