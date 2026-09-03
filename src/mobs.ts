@@ -1,43 +1,12 @@
-import * as ROT from "rot-js";
-import { DMap, type Pos, type Mob } from "./dmap";
+import { type Pos, type Mob } from "./dmap";
 import type { Game } from "./game";
 import { TILE_GLYPHS, Viewport } from "./viewport";
-import { moveOrBump } from "./move-player";
-import { Mood, tickMood, moodColor } from "./mood";
+import { moodColor } from "./mood";
 
 /** The mob occupying `at`, or `null` if the tile is free. */
 export function occupant(game: Game, at: Readonly<Pos>): Mob | null {
   return game.map.Q.find((mob) => mob.x === at.x && mob.y === at.y) ?? null;
 }
-
-/** The four cardinal steps a mob can wander in. */
-const DIRECTIONS: ReadonlyArray<Pos> = [
-  { x: -1, y: 0 },
-  { x: 1, y: 0 },
-  { x: 0, y: -1 },
-  { x: 0, y: 1 },
-];
-
-
-/**
- * Moves a single mob one step. On a coin flip it either steps toward the
- * player or wanders in a random cardinal direction. The move is skipped
- * when the chosen target tile is blocked (a wall) or already occupied by
- * another mob, so mobs never walk into or through something solid.
- */
-export function npcTurn(game: Game, mob: Mob): void {
-  tickMood(game, mob);
-  if (mob.mood === Mood.Sleep) return; // sleeping mobs don't act.
-
-  let delta: Readonly<Pos>;
-  if (ROT.RNG.getUniform() < 0.5) { // Home in on the player, one cardinal/diagonal step at a time.
-    delta = { x: Math.sign(game.player.x - mob.x), y: Math.sign(game.player.y - mob.y) };
-  } else { // Wander in a random cardinal direction.
-    delta = ROT.RNG.getItem(DIRECTIONS as Pos[])!;
-  }
-  moveOrBump(mob, game, delta);
-}
-
 
 /**
  * Draws a `k` glyph for every mob whose position falls within the visible

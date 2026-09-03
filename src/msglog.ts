@@ -22,9 +22,21 @@ together in a single place.
  * {@link drawFinalMessage}, so it persists across redraws until the player
  * commits their next real turn.
  */
+/** How many past messages {@link MsgQueue.history} keeps around for the 'p'/'P' log view (see {@link openLogView}). */
+const HISTORY_LIMIT = 200;
+
 export class MsgQueue {
   /** Messages pending for the current turn. */
   private readonly queue: string[] = [];
+
+  /**
+   * Every message ever logged this game, oldest first, capped at
+   * {@link HISTORY_LIMIT} (oldest entries drop off the front once full).
+   * Independent of {@link queue}/{@link finalDisplayMessage} — those are
+   * about *how* a message is first shown to the player turn-by-turn; this
+   * is the permanent record {@link openLogView} scrolls back through.
+   */
+  private readonly history: string[] = [];
 
   /**
    * The last message of the previous turn, shown as part of the normal
@@ -35,11 +47,22 @@ export class MsgQueue {
   private finalDisplayMessage = "";
 
   /**
-   * Enqueues a message to be shown after the turn resolves, and logs it to
-   * the dev console immediately to aid diagnostics during development.
+   * Enqueues a message to be shown after the turn resolves, records it into
+   * {@link history}, and logs it to the dev console immediately to aid
+   * diagnostics during development.
    */
-  msg(text: string): void { this.queue.push(text); console.log(text); } 
+  msg(text: string): void {
+    this.queue.push(text);
+    this.history.push(text);
+    if (this.history.length > HISTORY_LIMIT) this.history.shift();
+    console.log(text);
+  }
   hasQueued(): boolean { return this.queue.length > 0; } /** True when at least one message is waiting in the queue. */
+
+  /** The most recent `count` messages ever logged, oldest first (so they read top-to-bottom in log order). */
+  recent(count: number): string[] {
+    return this.history.slice(Math.max(0, this.history.length - count));
+  }
 
   /**
    * Shows every queued message except the last, one at a time, waiting for a
@@ -79,9 +102,43 @@ export class MsgQueue {
     this.drawRow(this.finalDisplayMessage, viewport);
   }
 
-  /** Draws `text` across the top row, first blanking the row it overwrites. */
+  /** Draws `text` in the message area, wrapping across rows if necessary — see {@link Viewport.drawMessageRows}. */
   private drawRow(text: string, viewport: Viewport): void {
-    viewport.clearRow(0);
-    viewport.display.drawText(0, 0, text);
+    viewport.drawMessageRows(text);
   }
+}
+
+/**
+ * Draws the read-only message-log screen — title, the most recent messages
+ * (see {@link MsgQueue.recent}) oldest at the top, newest at the bottom,
+ * and `footer` on the bottom row. Shared by {@link openLogView} (the normal
+ * in-game 'p'/'P' log) and ./combat.ts's game-over log toggle, so "how do I
+ * read the log" only has one implementation.
+ */
+export function drawLogScreen(game: Game, viewport: Viewport, footer: string): void {
+  const { display, height, width } = viewport;
+  const bodyRows = Math.max(0, height - 2); // title row + footer row.
+  const lines = game.log.recent(bodyRows);
+
+  display.clear();
+  display.drawText(0, 0, "Message Log");
+  lines.forEach((line, i) => display.drawText(0, 1 + i, line.slice(0, width)));
+  display.drawText(0, height - 1, footer);
+}
+
+/**
+ * Handles the 'p'/'P' log command: a full-screen, read-only view of the
+ * most recent messages, oldest at the top, newest at the bottom. Escape
+ * closes it. Wired from `movePlayer()` (`src/move-player.ts`).
+ *
+ * @returns `false` always — reading the log isn't an action in the world,
+ *   so it never consumes a turn.
+ */
+export async function openLogView(game: Game, viewport: Viewport): Promise<boolean> {
+  drawLogScreen(game, viewport, "[[ESC]] close");
+
+  while ((await inputKey()).key !== "Escape") { /* ignore any other key */ }
+
+  viewport.draw(game);
+  return false;
 }

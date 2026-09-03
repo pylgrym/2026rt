@@ -1,5 +1,5 @@
 import * as ROT from "rot-js";
-import { initGfx } from "./juice-gfx";
+import { initGfx } from "./juice/juice-gfx";
 import { HUD_WIDTH } from "./hud";
 
 /**

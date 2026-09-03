@@ -2,10 +2,18 @@ import { Viewport } from "./viewport";
 import { movePlayer } from "./move-player";
 import { Game } from "./game";
 import { inputKey } from "./input";
-import { npcTurn } from "./mobs";
+import { npcTurn } from "./sneaky-ai";
 import { Mob, isPly } from "./dmap";
 import { showGameOver } from "./combat";
 import { tickOocHeal } from "./ooc-heal";
+import { tickMana } from "./magic/mana";
+import { tickStatuses, isIncapacitated, isHasted, rollSlowSkip } from "./magic/status-effects";
+import { tickFieldEffects } from "./magic/field-effects";
+import { isAlly, allyTurn, tickSummonLifespans } from "./magic/summons";
+import { tickDelayedEvents } from "./magic/delayed-events";
+import { tickPositionHistory } from "./magic/position-history";
+import { tickMimicCurse, tickAnchors } from "./magic/forced-movement";
+import { tickFracture } from "./magic/fracture";
 
 /**
  * Runs the main game loop: waits for a key, resolves the player's and
@@ -19,25 +27,46 @@ import { tickOocHeal } from "./ooc-heal";
  * message untouched.
  */
 
-async function plyTurn(game: Game):Promise<void> {
+async function plyOneAction(game: Game, vp: Viewport):Promise<void> {
     let didTurn = false;
     while (!didTurn) {
       const keyEvent = await inputKey();
-      didTurn = movePlayer(game, keyEvent.key);
+      didTurn = await movePlayer(game, keyEvent.key, vp);
     }
 }
 
-async function doTurn(m:Mob, g: Game):Promise<void> {
-  isPly(m) ? await plyTurn(g): npcTurn(g,m); 
+async function plyTurn(game: Game, vp: Viewport):Promise<void> {
+    if (isIncapacitated(game.player)) {
+      game.log.msg("you can't act");
+      return;
+    }
+    if (rollSlowSkip(game.player)) {
+      game.log.msg("you are too slow to act");
+      return;
+    }
+    // Haste grants exactly one extra action per round; it does not
+    // recursively re-check itself, so it can never compound within a round.
+    const extraAction = isHasted(game.player);
+    await plyOneAction(game, vp);
+    if (extraAction && !is_gameOver(game) && !isIncapacitated(game.player)) await plyOneAction(game, vp);
 }
 
-export async function doTurns(g:Game):Promise<void> {
+async function doTurn(m:Mob, g: Game, vp: Viewport):Promise<void> {
+  if (isPly(m)) { await plyTurn(g, vp); return; }
+  if (isIncapacitated(m) || rollSlowSkip(m)) return;
+  const act = isAlly(m) ? () => allyTurn(g, m) : () => npcTurn(g, m);
+  const extraAction = isHasted(m);
+  act();
+  if (extraAction && !isIncapacitated(m)) act();
+}
+
+export async function doTurns(g:Game, vp: Viewport):Promise<void> {
   const Q = g.map.Q;
   let next = Q.front();
   assert(isPly(next), "player should be first mob in queue"); // INVARIANT expected.
   do {
-    turnLoopInvariants(next,g); 
-    await doTurn(next!,g);
+    turnLoopInvariants(next,g);
+    await doTurn(next!,g,vp);
     next = Q.rotate();
   } while (!isPly(next) && !is_gameOver(g));
 }
@@ -50,8 +79,17 @@ export async function gameLoop(g: Game, vp: Viewport): Promise<void> {
     await showAnyMessages(g, vp); // now the round has ended, show any messages to the player:
     vp.draw(g); // now that final message is committed, redraw the game state with it.
     if (is_gameOver(g)){break;}
-    await doTurns(g);
+    await doTurns(g, vp);
     tickOocHeal(g); // once per round, after the player and every mob has acted.
+    tickMana(g);
+    tickStatuses(g);
+    tickFieldEffects(g);
+    tickSummonLifespans(g);
+    tickDelayedEvents(g);
+    tickPositionHistory(g);
+    tickMimicCurse(g);
+    tickAnchors(g);
+    tickFracture(g);
   }
   showGameOver(g,vp);
 }

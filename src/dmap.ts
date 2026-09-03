@@ -1,6 +1,7 @@
 import * as ROT from "rot-js";
 import { MobQ } from "./MobQ";
 import type { T_Mood } from "./mood";
+import type { AiMemory } from "./ai-types";
 
 /**
  * Tile kinds for the dungeon map.
@@ -53,6 +54,78 @@ export const Tile = {
 // we should partition these two types.
 export type T_Tile = (typeof Tile)[keyof typeof Tile];
 
+/**
+ * Object kinds that can sit on the floor as loot (see {@link ./objs.ts}).
+ * A separate namespace from {@link Tile}: objects live in `DMap.objs`, not
+ * in the tile grid, so they don't need tile slots of their own.
+ */
+export const ObjType = {
+  Kettle: 0,
+  Tea: 1,
+
+  // Potions (see ../spells.md's Defensive/Utility/Buff sections and
+  // ./item-types.ts): self-affecting, but see ./items.ts's throwPotion for
+  // hurling one at a target instead.
+  PotionShield: 2,
+  PotionReflect: 3,
+  PotionInvisibility: 4,
+  PotionHealingAura: 5,
+  PotionCleanse: 6,
+  PotionDamageReductionWard: 7,
+  PotionHaste: 8,
+  PotionLevitate: 9,
+  PotionWaterwalk: 10,
+  PotionEmpower: 11,
+
+  // Scrolls: general one-shot effects, not tied to the reader's own body.
+  ScrollSleep: 12,
+  ScrollSilence: 13,
+  ScrollPolymorph: 14,
+  ScrollBlink: 15,
+  ScrollLight: 16,
+  ScrollDetectEnemies: 17,
+  ScrollSummonPortal: 18,
+  ScrollSummonSkeleton: 19,
+  ScrollSummonSwarm: 20,
+  ScrollElementalFamiliar: 21,
+  ScrollNecroticReanimation: 22,
+  ScrollArmyOfTheDead: 23,
+  ScrollWeaken: 24,
+  ScrollArmorBreak: 25,
+  ScrollMarkForDeath: 26,
+  ScrollCurse: 27,
+  ScrollDivineJudgment: 28,
+
+  // Wands: charged, targeted NSEW beams/projectiles (see ./items.ts's zapWand).
+  WandFireball: 29,
+  WandLightningBolt: 30,
+  WandIceShard: 31,
+  WandChainLightning: 32,
+  WandArcaneMissile: 33,
+  WandVoidBeam: 34,
+  WandShadowSpike: 35,
+  WandStunBolt: 36,
+  WandRoot: 37,
+  WandKnockback: 38,
+
+  // Staffs: charged, more powerful area effects (see ./items.ts's zapStaff).
+  StaffPoisonCloud: 39,
+  StaffMeteorStrike: 40,
+  StaffFrostNova: 41,
+  StaffGravityWell: 42,
+  StaffTimeSlow: 43,
+  StaffBarrierWall: 44,
+  StaffEarthquake: 45,
+  StaffFlameWall: 46,
+  StaffIcePlatform: 47,
+  StaffWebTrap: 48,
+  StaffSpikeTrap: 49,
+  StaffBlizzard: 50,
+  StaffBlackHole: 51,
+  StaffTimeStop: 52,
+} as const;
+export type T_ObjType = (typeof ObjType)[keyof typeof ObjType];
+
 /** Whether a given tile can be walked onto (floors yes, walls no). */
 export function walkable(tile: T_Tile): boolean {
   return tile !== Tile.Wall; //Floor;
@@ -71,6 +144,8 @@ export class DMap {
   readonly height: number;
   /** Mobs currently living on the map, mutated in place as they move. */
   readonly Q: MobQ = new MobQ();
+  /** Objects placed on the map by {@link addObjects}. */
+  objs: Obj[] = [];
   private readonly tiles: T_Tile[];
 
   constructor(width = MAP_WIDTH, height = MAP_HEIGHT, fill: T_Tile = Tile.Wall) {
@@ -112,7 +187,19 @@ export interface Mob extends Pos {
   dmg: number;
   /** Sleep/wake behaviour state; only monsters use it, the player leaves it `undefined`. See {@link ./mood.ts}. */
   mood?: T_Mood;
+  /** Behavioural AI scratch state; only monsters use it, the player leaves it `undefined`. See {@link ./ai-types.ts}. */
+  ai?: AiMemory;
 }
+
+/** An object sitting on the floor at a given position; see {@link ./objs.ts}. */
+export interface Obj extends Pos {
+  type: T_ObjType;
+  /** Charges remaining, for wands/staffs (see ./item-types.ts). `undefined` for single-use/uncharged items. */
+  charges?: number;
+}
+
+/** A carried item instance: the same identity/charge shape as {@link Obj}, minus a position. Used for `game.bag`. */
+export type ItemInstance = { type: T_ObjType; charges?: number };
 
 /** True when `mob` is the player. */
 export function isPly(mob: Mob | null): boolean {

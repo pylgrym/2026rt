@@ -1,6 +1,7 @@
 import * as ROT from "rot-js";
 import { DMap, Tile, T_Tile, Mob, walkable, generateDungeon, type Pos } from "./dmap";
 import { Mood } from "./mood";
+import { AiState } from "./ai-types";
 
 /**
  * The level 1-26 monster roster, one entry per letter of the alphabet.
@@ -63,7 +64,8 @@ export function makeMob(level: number, pos: Readonly<Pos>): Mob {
   const { tile, name } = MOB_TYPES[idx];
   const scale = 2 ** idx; // each level doubles hp and damage over the last.
   const hp = BASE_HP * scale;
-  return { x: pos.x, y: pos.y, t: tile, name, hp, maxhp: hp, dmg: BASE_DMG * scale, mood: Mood.Sleep };
+  const ai = { state: AiState.Idle, home: { x: pos.x, y: pos.y }, timer: 0 };
+  return { x: pos.x, y: pos.y, t: tile, name, hp, maxhp: hp, dmg: BASE_DMG * scale, mood: Mood.Sleep, ai };
 }
 
 /** The exact centre tile of `map`. */

@@ -1,7 +1,18 @@
 import { Viewport } from "./viewport";
 import { Game } from "./game";
 import { gameLoop } from "./gameloop";
-import { inputKey } from "./input";
+import { waitAfterGameOver } from "./combat";
+import { installGlobalErrorHandler } from "./error-overlay";
+
+// Installed first, before anything else can throw.
+installGlobalErrorHandler();
+
+// TEMPORARY test hooks for the crash overlay — call from the devtools
+// console: `testCrash()` for a thrown error, `testCrashAsync()` for a
+// rejected promise (the shape the original bug report actually was).
+// Remove once the overlay's been verified.
+(window as any).testCrash = () => { throw new Error("Test crash (testCrash())"); };
+(window as any).testCrashAsync = () => { Promise.reject(new Error("Test async crash (testCrashAsync())")); };
 
 async function main(): Promise<void> {
   /** Logical viewport size, measured in tiles (characters). */
@@ -15,13 +26,8 @@ async function main(): Promise<void> {
   while (true) {
     const game = new Game();
     await gameLoop(game, viewport);
-    await waitForEnter();
+    await waitAfterGameOver(game, viewport);
   }
-}
-
-/** Waits for the player to press Enter, ignoring any other key. */
-async function waitForEnter(): Promise<void> {
-  while ("Enter" !== (await inputKey()).key); {} 
 }
 
 main();

@@ -28,8 +28,10 @@ function audio(): AudioContext | null {
 /**
  * Plays a short sequence of tones. Each note is a `[frequency, startOffset,
  * duration]` triple (seconds), letting us build tiny melodies/stingers.
+ * Exported so other juice modules (e.g. ./juice-objs.ts) can build their own
+ * stingers without duplicating the oscillator/envelope plumbing.
  */
-function playTones(
+export function playTones(
   notes: ReadonlyArray<readonly [number, number, number]>,
   type: OscillatorType,
   peak: number

@@ -26,8 +26,8 @@ export function mapWidth(viewport: Viewport): number {
   return viewport.width - HUD_WIDTH;
 }
 
-/** Row 0 stays reserved for the message log (see ./msglog.ts). */
-const STATS_TOP = 1;
+/** Row 0 stays reserved for the message log (see ./msglog.ts); shifted one further to give the stats box a blank row of breathing room below it. */
+const STATS_TOP = 2;
 
 /** Draws the vertical HUD: a stats box, then two full-height health bars. */
 export function drawHud(viewport: Viewport, game: Game): void {
@@ -40,6 +40,7 @@ export function drawHud(viewport: Viewport, game: Game): void {
     ["LV", [`${xp.level}`]],
     ["XP", [`${xp.xp}/${XP_PER_LEVEL}`]],
     ["HP", [`${player.hp}/`, `${player.maxhp}`]],
+    ["MP", [`${game.mana.mana}/`, `${game.mana.maxmana}`]],
     ["DM", [`${player.dmg}`]],
     ["HL", [`${oocHeal.countdown}+${oocHeal.healAmount}`]],
   ];

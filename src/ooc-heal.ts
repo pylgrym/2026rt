@@ -1,6 +1,6 @@
 import type { Game } from "./game";
 import { isPly, type Mob } from "./dmap";
-import { playHeal } from "./juice-sound";
+import { playHeal } from "./juice/juice-sound";
 
 /**
  * Out-of-combat regeneration.

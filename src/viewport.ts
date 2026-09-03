@@ -2,9 +2,43 @@ import * as ROT from "rot-js";
 import { Tile, T_Tile, Pos } from "./dmap";
 import { Game } from "./game";
 import { drawMobs } from "./mobs";
+import { drawObjects } from "./objs";
 import { MOB_TYPES } from "./mob-factory";
 import { createDisplay } from "./rdisplay";
 import { drawHud, mapWidth } from "./hud";
+import { drawFieldEffects } from "./magic/field-effects";
+
+/** The most rows {@link Viewport.drawMessageRows} will ever draw a single message across. */
+const MAX_MESSAGE_LINES = 3;
+
+/**
+ * Word-wraps `text` into lines no longer than `maxWidth`, breaking on
+ * spaces where possible. A single word longer than `maxWidth` is
+ * hard-broken rather than left overflowing. Never returns an empty array
+ * (an empty `text` yields `[""]`), so callers can always index line 0.
+ */
+function wrapText(text: string, maxWidth: number): string[] {
+  if (maxWidth <= 0) return [text];
+  const lines: string[] = [];
+  let current = "";
+
+  for (const word of text.split(" ")) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (candidate.length <= maxWidth) {
+      current = candidate;
+      continue;
+    }
+    if (current) lines.push(current);
+    let rest = word;
+    while (rest.length > maxWidth) {
+      lines.push(rest.slice(0, maxWidth));
+      rest = rest.slice(maxWidth);
+    }
+    current = rest;
+  }
+  if (current || lines.length === 0) lines.push(current);
+  return lines;
+}
 
 /** Converts an HSL colour to a `#rrggbb` hex string. */
 function hslHex(h: number, s: number, l: number): string {
@@ -34,6 +68,20 @@ MOB_TYPES.forEach((mobType, i) => {
 });
 
 export const TILE_GLYPHS: Record<T_Tile, [string, string]> = glyphs as Record<T_Tile, [string, string]>;
+
+/**
+ * Map-space coordinate of the visible dungeon area's top-left corner, with
+ * the player centred within the dungeon-view columns (which stop short of
+ * the HUD, see ./hud.ts). Shared by {@link Viewport.draw} and anything else
+ * (e.g. ./ranged.ts's missile animation) that needs to convert between map
+ * and screen coordinates the same way the normal frame draw does.
+ */
+export function viewOrigin(viewport: Viewport, game: Game): Pos {
+  const mapW = mapWidth(viewport);
+  const halfW = Math.floor(mapW / 2);
+  const halfH = Math.floor(viewport.height / 2);
+  return { x: game.player.x - halfW, y: game.player.y - halfH };
+}
 
 /**
  * Renders a fixed-size window of the dungeon onto a rot.js display,
@@ -72,12 +120,9 @@ export class Viewport {
    * edge is reserved for the vertical HUD, see ./hud.ts.
    */
   draw(game: Game): void {
-    const { map, player } = game;
+    const { map } = game;
     const mapW = mapWidth(this);
-    const halfW = Math.floor(mapW / 2);
-    const halfH = Math.floor(this.height / 2);
-    const originX = player.x - halfW;
-    const originY = player.y - halfH;
+    const { x: originX, y: originY } = viewOrigin(this, game);
 
     this.display.clear(); // (we only need clear because of the map.inBounds mechanism below. if we drew the entire viewport always, that would handle the clear. )
 
@@ -97,6 +142,8 @@ export class Viewport {
       }
     }
 
+    drawObjects(this, game, { x: originX, y: originY }, mapW);
+    drawFieldEffects(this, game);
     drawMobs(this, game, { x: originX, y: originY }, mapW);
 
     // player is now drawn as part of mobs.
@@ -118,6 +165,41 @@ export class Viewport {
     for (let x = 0; x < this.width; x++) {
       this.display.draw(x, row, " ", null, null);
     }
+  }
+
+  /**
+   * Draws `text` starting at row 0 (the message area — see ../hud.ts's
+   * `STATS_TOP`), word-wrapped across at most {@link MAX_MESSAGE_LINES}
+   * rows (truncating with a trailing "…" if it still doesn't fit) — never
+   * more than that, and never fewer rows than it actually needs.
+   *
+   * This is the *only* sanctioned way to draw a message/prompt: rot.js's
+   * own `display.drawText` word-*wraps* with no row limit at all, which
+   * would spill an overlong message straight through the HUD and into the
+   * dungeon view below it — see ../proper-redraw.md for the bug this was
+   * written to fix. Every "flash a message" call site (./msglog.ts,
+   * ./spell-targeting.ts's `promptDirection`, Void Beam's channel prompt,
+   * ./ranged.ts's `fireMissile`) goes through this instead of hand-rolling
+   * `clearRow(0)` + `drawText(0, 0, ...)`.
+   *
+   * Rows within the message area that this particular text *doesn't* need
+   * are deliberately left untouched here — they don't need clearing,
+   * because the dungeon-tile pass earlier in {@link draw} already painted
+   * them fresh this same frame. A one-line message costs nothing extra; a
+   * rare three-line one temporarily (this frame only) covers that much of
+   * the dungeon view, exactly like row 0 always has.
+   */
+  drawMessageRows(text: string): void {
+    const allLines = wrapText(text, this.width);
+    const shown = allLines.slice(0, MAX_MESSAGE_LINES);
+    if (allLines.length > MAX_MESSAGE_LINES) {
+      const last = shown[shown.length - 1];
+      shown[shown.length - 1] = `${last.slice(0, Math.max(0, this.width - 1))}…`;
+    }
+    shown.forEach((line, row) => {
+      this.clearRow(row);
+      this.display.drawText(0, row, line);
+    });
   }
 
   /**

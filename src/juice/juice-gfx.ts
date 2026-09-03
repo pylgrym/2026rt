@@ -10,7 +10,7 @@
  * canvas is CSS-scaled to fit the window.
  */
 
-import type { Pos } from "./dmap";
+import type { Pos } from "../dmap";
 
 /** The mounted rot.js canvas we overlay effects on. */
 let canvasEl: HTMLCanvasElement | null = null;
