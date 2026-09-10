@@ -11,6 +11,7 @@ export class MobQ {
   }
   readonly mobs: Mob[] = [];   /** The backing mob list, mutated in place as mobs move. */
   push(...mobs: Mob[]): void { this.mobs.push(...mobs); }   /** Adds one or more mobs to the queue. */
+  unshift(mob: Mob): void { this.mobs.unshift(mob); }   /** Adds a mob at the front of the queue (e.g. a player arriving on a new level, who must be `front()` next round). */
   find(pred: (mob: Mob) => boolean): Mob | undefined { return this.mobs.find(pred); }   /** The first mob matching `pred`, or `undefined` if none do. */
   front(): Mob | null { return this.mobs[0] ?? null; }   /** The mob at the front of the queue, or `null` if the queue is empty. */
   rotate(): Mob | null {

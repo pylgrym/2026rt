@@ -1,4 +1,4 @@
-import { Mob, Pos, walkable } from "./dmap";
+import { Mob, Pos, Tile, walkable } from "./dmap";
 import { Game } from "./game";
 import type { Viewport } from "./viewport";
 import { occupant } from "./mobs";
@@ -43,8 +43,52 @@ export function isActionKey(key: string): boolean {
     key === "p" || key === "P" ||
     key === "u" || key === "U" ||
     key === "d" || key === "D" ||
+    key === "<" || key === ">" ||
+    key === "s" || key === "S" ||
     key in MOVEMENT
   );
+}
+
+/**
+ * Handles `<`/`>`/`s`/`S` on a stair tile: travels to the level above/below
+ * via {@link Game.dungeon}'s `travel`. `<`/`>` require standing on the
+ * matching stair glyph; `s`/`S` auto-detects whichever stair (if any) is
+ * underfoot. Climbing up from level 1 is refused with a message instead;
+ * descending from the deepest level (15) wins the game instead of
+ * traveling anywhere — see ../dungeon-levels-stairs-design.md.
+ *
+ * @returns `true` (a turn is consumed) whenever the key was a stairs key
+ *   and something happened — travel, victory, or the "broken stairs"
+ *   refusal. Returns `false` (no turn, no message) when the key was a
+ *   stairs key but there's no matching stair underfoot.
+ */
+function tryUseStairs(game: Game, key: string): boolean {
+  const tile = game.curMap().get(game.player);
+
+  if (key === "<" || (key.toLowerCase() === "s" && tile === Tile.StairUp)) {
+    if (tile !== Tile.StairUp) return false;
+    if (!game.dungeon.canGoUp()) {
+      game.log.msg("the stairs appear to be broken");
+      return true;
+    }
+    game.dungeon.travel(game.player, "up");
+    game.log.msg(`you climb up to level ${game.dungeon.curLevel}`);
+    return true;
+  }
+
+  if (key === ">" || (key.toLowerCase() === "s" && tile === Tile.StairDown)) {
+    if (tile !== Tile.StairDown) return false;
+    if (game.dungeon.isDeepestLevel()) {
+      game.won = true;
+      game.log.msg("you descend into the depths and win the game!");
+      return true;
+    }
+    game.dungeon.travel(game.player, "down");
+    game.log.msg(`you descend to level ${game.dungeon.curLevel}`);
+    return true;
+  }
+
+  return false;
 }
 
 /**
@@ -61,8 +105,8 @@ export function isActionKey(key: string): boolean {
  */
 
 export function moveOrBump(mob: Mob, game: Game, delta: Readonly<Pos>): boolean {
-  const nx = wrap(mob.x + delta.x, game.map.width);
-  const ny = wrap(mob.y + delta.y, game.map.height);
+  const nx = wrap(mob.x + delta.x, game.curMap().width);
+  const ny = wrap(mob.y + delta.y, game.curMap().height);
   if (nx === mob.x && ny === mob.y) { return true; }
   const target: Pos = { x: nx, y: ny };
   const occupier = occupant(game, target);
@@ -91,7 +135,7 @@ function swapWithAlly(player: Mob, ally: Mob): boolean {
 }
 
 export function moveMob(mob: Mob, game: Game, dest: Readonly<Pos>): boolean {
-  const walk = walkable(game.map.get(dest)); // Respect walls; a blocked target aborts the move.
+  const walk = walkable(game.curMap().get(dest)); // Respect walls; a blocked target aborts the move.
   if (walk) { mob.x = dest.x; mob.y = dest.y; }
   return walk;
 }
@@ -130,6 +174,10 @@ export async function movePlayer(game: Game, key: string, viewport: Viewport): P
 
   if (key === "d" || key === "D") {
     return openBagDrop(game, viewport);
+  }
+
+  if (key === "<" || key === ">" || key === "s" || key === "S") {
+    return tryUseStairs(game, key);
   }
 
   const move = MOVEMENT[key];

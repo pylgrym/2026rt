@@ -7,6 +7,7 @@ import { MOB_TYPES } from "./mob-factory";
 import { createDisplay } from "./rdisplay";
 import { drawHud, mapWidth } from "./hud";
 import { drawFieldEffects } from "./magic/field-effects";
+import { hasLineOfSight } from "./mood";
 
 /** The most rows {@link Viewport.drawMessageRows} will ever draw a single message across. */
 const MAX_MESSAGE_LINES = 3;
@@ -17,7 +18,7 @@ const MAX_MESSAGE_LINES = 3;
  * hard-broken rather than left overflowing. Never returns an empty array
  * (an empty `text` yields `[""]`), so callers can always index line 0.
  */
-function wrapText(text: string, maxWidth: number): string[] {
+export function wrapText(text: string, maxWidth: number): string[] {
   if (maxWidth <= 0) return [text];
   const lines: string[] = [];
   let current = "";
@@ -57,6 +58,8 @@ const glyphs: Partial<Record<T_Tile, [string, string]>> = {
   [Tile.Wall]: ["#", "#888"],
   [Tile.Nest]: ["*", "#c33"],
   [Tile.Ply]: ["@", "#fff"],
+  [Tile.StairUp]: ["<", "#0ff"],
+  [Tile.StairDown]: [">", "#ff0"],
 };
 
 // Grade monster colour by level: green (weak, near the centre) through
@@ -120,7 +123,7 @@ export class Viewport {
    * edge is reserved for the vertical HUD, see ./hud.ts.
    */
   draw(game: Game): void {
-    const { map } = game;
+    const map = game.curMap();
     const mapW = mapWidth(this);
     const { x: originX, y: originY } = viewOrigin(this, game);
 
@@ -135,9 +138,15 @@ export class Viewport {
         at.y = originY + sy;
         if (!map.inBounds(at)) continue;
 
-        const tile = map.get(at);
+        let tile = map.get(at);
+        // Stairs only draw once they're in line of sight — otherwise show
+        // the plain floor underneath, same as an unseen object staying
+        // hidden (see ./objs.ts's drawObjects).
+        if ((tile === Tile.StairUp || tile === Tile.StairDown) && !hasLineOfSight(map, game.player, at)) {
+          tile = Tile.Floor;
+        }
         const [glyph, fg] = TILE_GLYPHS[tile];
-        const color = tile === Tile.Wall ? game.wallShader.colorAt(at) : fg;
+        const color = tile === Tile.Wall ? game.curShader().colorAt(at) : fg;
         this.display.draw(sx, sy, glyph, color, "#000");
       }
     }

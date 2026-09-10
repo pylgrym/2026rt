@@ -13,7 +13,7 @@ const DEFAULT_TRAITS: AiTraits = {
   hitAndRun: 0.1,
   kiter: 0.1,
   morale: 0.4,
-  alerter: 0.2,
+  alerter: 0.1,
   courage: 0.5,
 };
 

@@ -77,7 +77,7 @@ function atRisk(map: DMap, mob: Readonly<Mob>, player: Readonly<Pos>): boolean {
  */
 export function tickMood(game: Game, mob: Mob): void {
   if (mob.mood === undefined) return;
-  if (!atRisk(game.map, mob, game.player)) return;
+  if (!atRisk(game.curMap(), mob, game.player)) return;
 
   const wasAsleep = mob.mood === Mood.Sleep;
   const chance = wasAsleep ? WAKE_CHANCE : SLEEP_CHANCE;
@@ -95,7 +95,7 @@ export function tickMood(game: Game, mob: Mob): void {
  */
 export function moodColor(game: Game, mob: Readonly<Mob>): string | null {
   if (mob.mood === undefined) return null;
-  const risk = atRisk(game.map, mob, game.player);
+  const risk = atRisk(game.curMap(), mob, game.player);
   return mob.mood === Mood.Sleep
     ? (risk ? "#fff" : "#888")
     : (risk ? "#fa0" : "#f33");

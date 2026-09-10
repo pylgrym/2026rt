@@ -97,6 +97,7 @@ function zapEmpty(game: Game, info: ItemTypeInfo): UseResult {
     const dmg = ROT.RNG.getUniformInt(2, 7);
     game.player.hp -= dmg;
     addStatus(game.player, StatusKind.Stun, 1);
+    game.deathCause = `a backfiring ${info.name}`;
     game.log.msg(`the ${info.name} is empty — it backfires, searing you for ${dmg}!`);
   } else {
     game.log.msg(`the ${info.name} is empty; it gives an ominous, useless click`);
@@ -139,6 +140,7 @@ export function rechargeItem(game: Game, info: ItemTypeInfo, item: ItemInstance)
     const blast = 8 + overflow * 6;
     game.log.msg(`the ${info.name} shudders, overloads, and explodes!`);
     game.player.hp -= blast;
+    game.deathCause = `an exploding ${info.name}`;
     for (const mob of mobsInRadius(game, game.player, 2, game.player)) {
       dealSpellDamage(game, game.player, mob, Math.round(blast / 2), "caught in the blast");
     }

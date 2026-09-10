@@ -26,7 +26,7 @@ export function npcTurn(game: Game, mob: Mob): void {
 
   const ai: AiMemory = mob.ai ??= { state: AiState.Idle, home: { x: mob.x, y: mob.y }, timer: 0 };
   const traits = getTraits(mob.name);
-  const los = hasLineOfSight(game.map, mob, game.player) && !isInvisible(game.player);
+  const los = hasLineOfSight(game.curMap(), mob, game.player) && !isInvisible(game.player);
   // Excludes `mob` itself: without that, a mob's own (always-occupied-by-
   // itself) current tile reads as blocked, and rot.js's AStar treats an
   // impassable source tile as "no path exists" — silently killing every
@@ -73,7 +73,7 @@ function distSq(a: Readonly<Pos>, b: Readonly<Pos>): number {
  */
 function moveAi(mob: Mob, game: Game, delta: Readonly<Pos>): void {
   const wrap = (v: number, size: number) => ((v % size) + size) % size;
-  const dest: Pos = { x: wrap(mob.x + delta.x, game.map.width), y: wrap(mob.y + delta.y, game.map.height) };
+  const dest: Pos = { x: wrap(mob.x + delta.x, game.curMap().width), y: wrap(mob.y + delta.y, game.curMap().height) };
   const occ = occupant(game, dest);
   if (occ && !isPly(occ)) return;
   moveOrBump(mob, game, delta);
@@ -103,12 +103,12 @@ function pathStep(game: Game, from: Readonly<Pos>, to: Readonly<Pos>, blocked: (
   if (distSq(from, to) > MAX_PATH_DIST_SQ) {
     return { x: Math.sign(to.x - from.x), y: Math.sign(to.y - from.y) };
   }
-  return stepToward(game.map, from, to, blocked);
+  return stepToward(game.curMap(), from, to, blocked);
 }
 
 /** Every other (non-player) mob within {@link ALLY_RADIUS_SQ} of `mob` that is currently awake. */
 function nearbyAwakeAllies(game: Game, mob: Mob): Mob[] {
-  return game.map.Q.mobs.filter(
+  return game.curMap().Q.mobs.filter(
     (m) => m !== mob && !isPly(m) && m.mood === Mood.Wake && distSq(m, mob) <= ALLY_RADIUS_SQ
   );
 }
@@ -117,7 +117,7 @@ function nearbyAwakeAllies(game: Game, mob: Mob): Mob[] {
 function nearestAlly(game: Game, mob: Mob): Mob | null {
   let best: Mob | null = null;
   let bestDistSq = Infinity;
-  for (const m of game.map.Q.mobs) {
+  for (const m of game.curMap().Q.mobs) {
     if (m === mob || isPly(m)) continue;
     const d = distSq(m, mob);
     if (d < bestDistSq) { bestDistSq = d; best = m; }
@@ -149,20 +149,46 @@ function maybeBreakMorale(game: Game, mob: Mob, ai: AiMemory, traits: AiTraits, 
 function maybeNotice(game: Game, mob: Mob, ai: AiMemory, traits: AiTraits, los: boolean): void {
   if (!los || (ai.state !== AiState.Idle && ai.state !== AiState.Ambush)) return;
   ai.state = AiState.Hunt;
-  if (ROT.RNG.getUniform() < traits.alerter) alertNearbyAllies(game, mob);
+  const roll = ROT.RNG.getUniform();
+  const sounds = roll < traits.alerter;
+  console.debug(`[alert] ${mob.name}@(${mob.x},${mob.y}) notices player: alerter=${traits.alerter} roll=${roll.toFixed(3)} sounds=${sounds}`);
+  if (sounds) alertNearbyAllies(game, mob);
 }
 
-/** Rouses nearby sleeping mobs and redirects nearby idle ones toward the commotion, without spamming the message log (many mobs could be in range). */
+/** Chance a nearby mob of the alerter's own species heeds the alarm. */
+const ALERT_CHANCE_SAME_KIND = 0.33;
+/** Chance a nearby mob of a *different* species heeds the alarm. */
+const ALERT_CHANCE_OTHER_KIND = 0.07;
+
+/** Rouses nearby sleeping mobs and redirects nearby idle ones toward the commotion — each one indepedently, favouring its own kind. Logs a single ominous cry for the alarm itself, but stays silent per-mob in the in-game log (many could be in range) — see the console for a per-candidate trace. */
 function alertNearbyAllies(game: Game, mob: Mob): void {
-  for (const m of game.map.Q.mobs) {
-    if (m === mob || isPly(m) || distSq(m, mob) > ALERT_RADIUS_SQ) continue;
-    if (m.mood === Mood.Sleep) m.mood = Mood.Wake;
-    if (m.ai && m.ai.state === AiState.Idle) {
+  game.log.msg(`${mob.name} sounds the alarm!`);
+  const candidates = game.curMap().Q.mobs.filter(
+    (m) => m !== mob && !isPly(m) && distSq(m, mob) <= ALERT_RADIUS_SQ
+  );
+  console.debug(`[alert] ${mob.name}@(${mob.x},${mob.y}) cries out: radiusSq=${ALERT_RADIUS_SQ} candidatesInRange=${candidates.length}/${game.curMap().Q.mobs.length}`);
+  let woken = 0;
+  for (const m of candidates) {
+    const sameKind = m.name === mob.name;
+    const chance = sameKind ? ALERT_CHANCE_SAME_KIND : ALERT_CHANCE_OTHER_KIND;
+    const roll = ROT.RNG.getUniform();
+    const heeds = roll < chance;
+    const wasAsleep = m.mood === Mood.Sleep;
+    console.debug(`[alert]   -> ${m.name}@(${m.x},${m.y}) dSq=${distSq(m, mob)} sameKind=${sameKind} chance=${chance} roll=${roll.toFixed(3)} heeds=${heeds} wasAsleep=${wasAsleep}`);
+    if (!heeds) continue;
+    if (wasAsleep) { m.mood = Mood.Wake; woken++; }
+    // Idle and Ambush are the only states maybeNotice will act on (see its
+    // own Idle/Ambush check above) — so a mob left in either of those after
+    // being alerted would be free to roll traits.alerter itself on its very
+    // next turn and cry out again. Moving it to Search closes that loophole:
+    // an alarm-woken mob heads for the commotion instead of sounding its own.
+    if (m.ai && (m.ai.state === AiState.Idle || m.ai.state === AiState.Ambush)) {
       m.ai.state = AiState.Search;
       m.ai.lastSeenPlayer = { x: mob.x, y: mob.y };
       m.ai.timer = 6;
     }
   }
+  console.debug(`[alert] ${mob.name}@(${mob.x},${mob.y}) done: woke ${woken}/${candidates.length} nearby mobs`);
 }
 
 /** Idle wandering: territorial mobs drift back toward home once they've strayed, everyone else roams freely. Occasionally settles into an ambush instead. */
@@ -186,9 +212,9 @@ function bestHidingSpot(game: Game, mob: Mob): Pos | null {
   let bestScore = -1;
   for (const d of [{ x: 0, y: 0 }, ...DIRECTIONS]) {
     const p: Pos = { x: mob.x + d.x, y: mob.y + d.y };
-    if ((d.x !== 0 || d.y !== 0) && (!walkable(game.map.get(p)) || occupant(game, p))) continue;
+    if ((d.x !== 0 || d.y !== 0) && (!walkable(game.curMap().get(p)) || occupant(game, p))) continue;
     let score = 0;
-    for (const n of NEIGHBOURS8) if (!walkable(game.map.get({ x: p.x + n.x, y: p.y + n.y }))) score++;
+    for (const n of NEIGHBOURS8) if (!walkable(game.curMap().get({ x: p.x + n.x, y: p.y + n.y }))) score++;
     if (score > bestScore) { bestScore = score; best = d; }
   }
   return best && (best.x !== 0 || best.y !== 0) ? best : null;
@@ -211,7 +237,7 @@ const RING_OFFSETS: ReadonlyArray<Pos> = [
 
 /** When other hunters share this target, gives `mob` a deterministic ring slot around it so the group flanks from multiple sides instead of single-filing in. */
 function flankingTarget(game: Game, mob: Mob, target: Readonly<Pos>): Pos {
-  const pack = game.map.Q.mobs.filter(
+  const pack = game.curMap().Q.mobs.filter(
     (m) => !isPly(m) && m.ai?.state === AiState.Hunt && distSq(m, target) <= ALLY_RADIUS_SQ
   );
   if (pack.length <= 1) return target;
@@ -224,7 +250,7 @@ function flankingTarget(game: Game, mob: Mob, target: Readonly<Pos>): Pos {
   if (idx === -1) return target;
   const offset = RING_OFFSETS[idx % RING_OFFSETS.length];
   const dest: Pos = { x: target.x + offset.x, y: target.y + offset.y };
-  return walkable(game.map.get(dest)) ? dest : target;
+  return walkable(game.curMap().get(dest)) ? dest : target;
 }
 
 /** Hunt: pathfind toward the last-seen player position (flanking when packmates share the target), attacking on contact and giving up beyond a territorial mob's leash. */
@@ -284,7 +310,7 @@ function actSearch(game: Game, mob: Mob, ai: AiMemory, los: boolean, blocked: (p
 
 /** Feint: after landing a hit, fake a short retreat before charging back in. */
 function actFeint(game: Game, mob: Mob, ai: AiMemory, blocked: (p: Readonly<Pos>) => boolean): void {
-  const step = stepAway(game.map, mob, game.player, blocked);
+  const step = stepAway(game.curMap(), mob, game.player, blocked);
   if (step) moveAi(mob, game, step);
 
   if (--ai.timer <= 0) {
@@ -295,7 +321,7 @@ function actFeint(game: Game, mob: Mob, ai: AiMemory, blocked: (p: Readonly<Pos>
 
 /** Hit-and-run: after landing a hit, retreat all the way toward home before daring to re-approach. */
 function actHitAndRun(game: Game, mob: Mob, ai: AiMemory, blocked: (p: Readonly<Pos>) => boolean): void {
-  const step = pathStep(game, mob, ai.home, blocked) ?? stepAway(game.map, mob, game.player, blocked);
+  const step = pathStep(game, mob, ai.home, blocked) ?? stepAway(game.curMap(), mob, game.player, blocked);
   if (step) moveAi(mob, game, step);
   if (--ai.timer <= 0) ai.state = AiState.Hunt;
 }
@@ -303,7 +329,7 @@ function actHitAndRun(game: Game, mob: Mob, ai: AiMemory, blocked: (p: Readonly<
 /** Flee: run from a fight it wants no part of, heading for the nearest ally/home rather than straight away — baiting a pursuer toward help. */
 function actFlee(game: Game, mob: Mob, ai: AiMemory, traits: AiTraits, blocked: (p: Readonly<Pos>) => boolean): void {
   const rally = nearestAlly(game, mob) ?? ai.home;
-  const step = pathStep(game, mob, rally, blocked) ?? stepAway(game.map, mob, game.player, blocked);
+  const step = pathStep(game, mob, rally, blocked) ?? stepAway(game.curMap(), mob, game.player, blocked);
   if (step) moveAi(mob, game, step);
 
   if (--ai.timer <= 0) {

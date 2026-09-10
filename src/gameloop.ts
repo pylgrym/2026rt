@@ -4,7 +4,7 @@ import { Game } from "./game";
 import { inputKey } from "./input";
 import { npcTurn } from "./sneaky-ai";
 import { Mob, isPly } from "./dmap";
-import { showGameOver } from "./combat";
+import { showGameOver, showVictory } from "./combat";
 import { tickOocHeal } from "./ooc-heal";
 import { tickMana } from "./magic/mana";
 import { tickStatuses, isIncapacitated, isHasted, rollSlowSkip } from "./magic/status-effects";
@@ -61,18 +61,24 @@ async function doTurn(m:Mob, g: Game, vp: Viewport):Promise<void> {
 }
 
 export async function doTurns(g:Game, vp: Viewport):Promise<void> {
-  const Q = g.map.Q;
+  const startLevel = g.dungeon.curLevel;
+  const Q = g.curMap().Q;
   let next = Q.front();
   assert(isPly(next), "player should be first mob in queue"); // INVARIANT expected.
   do {
     turnLoopInvariants(next,g);
     await doTurn(next!,g,vp);
+    // The player took the stairs mid-round: they've left this map's Q
+    // entirely, so the rest of this round (the other mobs on the map they
+    // left) doesn't happen — it resumes on the new level's Q next round.
+    if (g.dungeon.curLevel !== startLevel) return;
     next = Q.rotate();
   } while (!isPly(next) && !is_gameOver(g));
 }
 
 export function isDead(m: Mob): boolean { return m.hp <= 0; }
-export function is_gameOver(g: Game): boolean { return isDead(g.player); }
+/** True once the round is over, either by death or by {@link Game.won} (descending from the deepest dungeon level). */
+export function is_gameOver(g: Game): boolean { return isDead(g.player) || g.won; }
 
 export async function gameLoop(g: Game, vp: Viewport): Promise<void> {
   while (true) {
@@ -80,7 +86,8 @@ export async function gameLoop(g: Game, vp: Viewport): Promise<void> {
     vp.draw(g); // now that final message is committed, redraw the game state with it.
     if (is_gameOver(g)){break;}
     await doTurns(g, vp);
-    tickOocHeal(g); // once per round, after the player and every mob has acted.
+    g.dungeon.tickCurLevelTurns(); // once per round, after the player and every mob has acted.
+    tickOocHeal(g);
     tickMana(g);
     tickStatuses(g);
     tickFieldEffects(g);
@@ -91,7 +98,7 @@ export async function gameLoop(g: Game, vp: Viewport): Promise<void> {
     tickAnchors(g);
     tickFracture(g);
   }
-  showGameOver(g,vp);
+  if (g.won) showVictory(g, vp); else showGameOver(g, vp);
 }
 
 async function showAnyMessages(game: Game, viewport: Viewport) {
@@ -109,6 +116,6 @@ export function assert(required: boolean, complaint: string) {
 function turnLoopInvariants(m:any, g:Game):void {
   assert(m != null, 'unexpected null in mob q.');
   assert(!!m, 'unexpected empty value in mob q.');
-  assert(g.map.Q.mobs.length>0, 'mob q must be non-empty');
+  assert(g.curMap().Q.mobs.length>0, 'mob q must be non-empty');
 }
 

@@ -28,21 +28,31 @@ const OBJ_INFO_BY_TYPE = new Map<T_ObjType, ObjTypeInfo>(OBJ_TYPES.map((o) => [o
 
 /**
  * Every pickupable type's display info, legacy Kettle/Tea plus every
- * potion/scroll/wand/staff from ./item-types.ts. Also used by bag.ts to
- * render inventory entries.
+ * potion/scroll/wand/staff from ./item-types.ts.
  *
  * Every spell item's `name` here is already prefixed with its fixed poetic
- * {@link ItemTypeInfo.colorName} (e.g. "vermillion staff of meteors") —
- * that colour is a permanent, deterministic identity per item type, not a
- * randomised-per-game identification scheme, so baking it into the label
- * once here means every call site (pickup/drop messages, the bag menu, ...)
- * shows it for free.
+ * {@link ItemTypeInfo.colorName} (e.g. "vermillion staff:meteors") — that
+ * colour is a permanent, deterministic identity per item type, not a
+ * randomised-per-game identification scheme. Most UI text prefers the bare
+ * name instead (see {@link objName}) and shows the colour some other way
+ * (a coloured line, coloured art, ...); use this one where the colour name
+ * itself needs to be in the text, or where you just want `.glyph`/`.color`.
  */
 export function objInfo(type: T_ObjType): ObjTypeInfo {
   const legacy = OBJ_INFO_BY_TYPE.get(type);
   if (legacy) return legacy;
   const item = itemTypeInfo(type)!;
   return { type: item.type, name: `${item.colorName} ${item.name}`, glyph: item.glyph, color: item.color };
+}
+
+/**
+ * An item's bare name with no colour-name prefix, e.g. "staff:meteors" —
+ * what pickup/drop/use log messages and the bag menu show, now that the
+ * colour is conveyed by tinting the text instead of spelling it out. Legacy
+ * Kettle/Tea have no colour prefix to begin with, so this is just their name.
+ */
+export function objName(type: T_ObjType): string {
+  return itemTypeInfo(type)?.name ?? objInfo(type).name;
 }
 
 /** The full pool of types the world can spawn: legacy Kettle/Tea plus every spell item. */
@@ -55,14 +65,21 @@ function randomObjType(): T_ObjType {
 
 /**
  * Builds a freshly-placed/dropped {@link Obj} of `type` at `pos`. Wands and
- * staffs (see ./item-types.ts) get a random starting charge count from 0 up
- * to their base max — most are found partly spent, some empty, a few full
- * — everything else is left uncharged (`charges: undefined`).
+ * staffs (see ./item-types.ts) get a random starting charge count from 1 up
+ * to their base max — most are found partly spent, a few full, but never
+ * dead-on-arrival — everything else is left uncharged (`charges: undefined`).
+ * The charge count is the max of two uniform rolls rather than a single
+ * roll, skewing the result upward so a barely-charged stick, while still
+ * possible, is rarer than any other charge value instead of exactly as
+ * common as all of them.
  */
 function makeObj(pos: Readonly<Pos>, type: T_ObjType): Obj {
   const info = itemTypeInfo(type);
   const isCharged = info && (info.kind === ItemKind.Wand || info.kind === ItemKind.Staff);
-  const charges = isCharged ? ROT.RNG.getUniformInt(0, info!.baseMaxCharges ?? 5) : undefined;
+  const maxCharges = info?.baseMaxCharges ?? 5;
+  const charges = isCharged
+    ? Math.max(ROT.RNG.getUniformInt(1, maxCharges), ROT.RNG.getUniformInt(1, maxCharges))
+    : undefined;
   return { x: pos.x, y: pos.y, type, charges };
 }
 
@@ -103,11 +120,11 @@ export function addObjects(map: DMap): Obj[] {
  */
 export function drawObjects(viewport: Viewport, game: Game, origin: Readonly<Pos>, drawWidth: number): void {
   const { display, height } = viewport;
-  for (const obj of game.map.objs) {
+  for (const obj of game.curMap().objs) {
     const sx = obj.x - origin.x;
     const sy = obj.y - origin.y;
     if (sx < 0 || sy < 0 || sx >= drawWidth || sy >= height) continue;
-    const visible = hasLineOfSight(game.map, game.player, obj);
+    const visible = hasLineOfSight(game.curMap(), game.player, obj);
     if (!visible) continue; // objects without line of sight no longer draw
     const [glyph, color] = [objInfo(obj.type).glyph, objInfo(obj.type).color];
     // const [glyph, color] = visible ? [objInfo(obj.type).glyph, objInfo(obj.type).color] : ["?", "#fff"];
@@ -148,7 +165,7 @@ export function healSpell(game: Game, amount: number): void {
  * inventory command.
  */
 export function useObjectType(game: Game, type: T_ObjType): void {
-  game.log.msg(`you use ${objInfo(type).name}`);
+  game.log.msg(`you use ${objName(type)}`);
   healSpell(game, Math.round(game.player.maxhp * 0.25));
 }
 
@@ -161,20 +178,20 @@ export function useObjectType(game: Game, type: T_ObjType): void {
  */
 function takeObject(game: Game, obj: Readonly<Obj>): boolean {
   if (!addToBag(game, obj.type, obj.charges)) return false;
-  removeObject(game.map, obj);
-  game.log.msg(`got ${objInfo(obj.type).name}`);
+  removeObject(game.curMap(), obj);
+  game.log.msg(`got ${objName(obj.type)}`);
   return true;
 }
 
 /** Logs a message for `obj`, then takes it. */
 function noticeObject(game: Game, obj: Readonly<Obj>): void {
-  game.log.msg(`${objInfo(obj.type).name} here`);
+  game.log.msg(`${objName(obj.type)} here`);
   //takeObject(game, obj); // no, stepping on it no longer auto-picks up.
 }
 
 /** The object at `pos`, if any. */
 function objectAt(game: Game, pos: Readonly<Pos>): Obj | undefined {
-  return game.map.objs.find((p) => p.x === pos.x && p.y === pos.y);
+  return game.curMap().objs.find((p) => p.x === pos.x && p.y === pos.y);
 }
 
 /**
@@ -210,7 +227,7 @@ export function pickupObject(game: Game): boolean {
  * wand/staff rolls a random starting charge count via {@link makeObj}.
  */
 export function dropObject(game: Game, pos: Readonly<Pos>, type: T_ObjType, charges?: number): void {
-  game.map.objs.push(charges !== undefined ? { x: pos.x, y: pos.y, type, charges } : makeObj(pos, type));
+  game.curMap().objs.push(charges !== undefined ? { x: pos.x, y: pos.y, type, charges } : makeObj(pos, type));
 }
 
 /**

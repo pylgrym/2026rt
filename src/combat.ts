@@ -4,7 +4,7 @@ import type { Game } from "./game";
 import { playAttack, playHurt } from "./juice/juice-sound";
 import { spark, splatter } from "./juice/juice-gfx";
 import { isDead } from "./gameloop";
-import { Viewport } from "./viewport";
+import { Viewport, wrapText } from "./viewport";
 import { noteCombatAttempt } from "./ooc-heal";
 import { noteLastFoe } from "./last-foe";
 import { awardKillXp } from "./xp";
@@ -36,12 +36,14 @@ export function bump(atk:Mob, def:Mob, game: Game): boolean {
   const { damage, reflected, siphon } = applyIncomingModifiers(def, outgoing);
   def.hp -= damage;
   breakSleepOnDamage(def);
+  if (isPly(def) && damage > 0) game.deathCause = `slain by ${attacker}`;
   game.log.msg( damage ?
     `${attacker} hits ${target} for ${damage}` :
     `${attacker} misses ${target}`
   );
   if (reflected > 0) {
     atk.hp -= reflected;
+    if (isPly(atk)) game.deathCause = `their own attack, reflected by ${target}`;
     game.log.msg(`${target} reflects ${reflected} back at ${attacker}`);
   }
   if (siphon > 0) {
@@ -51,6 +53,7 @@ export function bump(atk:Mob, def:Mob, game: Game): boolean {
   const thorns = getStatus(def, StatusKind.Thorns) ?? getStatus(def, StatusKind.StaticSkin);
   if (thorns) {
     atk.hp -= thorns.magnitude;
+    if (isPly(atk)) game.deathCause = `${target}'s thorned ward`;
     game.log.msg(`${target}'s ward sears ${attacker} for ${thorns.magnitude}`);
   }
   if (isDead(def) && preventDeathOnce(def)) {
@@ -79,12 +82,17 @@ function attack_juice(atk: Mob, def: Mob, game: Game) {
  * as "the orc is {verb} for N" (e.g. "burned", "shocked", "frozen").
  */
 export function dealSpellDamage(game: Game, caster: Mob, target: Mob, rawDamage: number, verb: string): void {
+  noteLastFoe(game.lastFoe, caster, target); // remember this fight for the HUD's "foe" bar.
   const { damage, reflected, siphon } = applyIncomingModifiers(target, rawDamage);
   target.hp -= damage;
   breakSleepOnDamage(target);
+  if (isPly(target) && damage > 0) {
+    game.deathCause = isPly(caster) ? `their own spell (${verb})` : `${verb} by ${caster.name}`;
+  }
   game.log.msg(damage > 0 ? `${target.name} is ${verb} for ${damage}` : `${target.name} resists`);
   if (reflected > 0 && caster !== target) {
     caster.hp -= reflected;
+    if (isPly(caster)) game.deathCause = `their own reflected spell`;
     game.log.msg(`${target.name} reflects ${reflected} back at ${caster.name}`);
   }
   if (siphon > 0 && caster !== target) {
@@ -100,42 +108,66 @@ export function dealSpellDamage(game: Game, caster: Mob, target: Mob, rawDamage:
 
 function kill(atk: Mob, def: Mob, game: Game) {
   game.log.msg(`${def.name} dies`);
-  game.map.Q.remove(def);
+  game.curMap().Q.remove(def);
   if (isPly(atk)) {
     awardKillXp(game, def);
     killDrop(game, def, levelOfTile(def.t));
   }
 }
 
+/** Which of the two ways a game can end just happened. */
+type RoundEndKind = "loss" | "win";
+
+const END_SCREEN_LABEL: Record<RoundEndKind, string> = {
+  loss: "%c{yellow}%b{#400}[%c{red}GAME OVER%c{yellow}]%b{}%c{}",
+  win: "%c{yellow}%b{#040}[%c{#3f3}YOU WIN%c{yellow}]%b{}%c{}",
+};
+
 export function showGameOver(g: Game, vp: Viewport) {
-  g.log.msg("GAME OVER"); // logged once, here — drawGameOverScreen() re-draws this same screen on toggling back from the log without re-logging it.
-  drawGameOverScreen(g, vp);
+  g.log.msg("GAME OVER"); // logged once, here — drawEndScreen() re-draws this same screen on toggling back from the log without re-logging it.
+  drawEndScreen(g, vp, "loss");
 }
 
-function drawGameOverScreen(g: Game, vp: Viewport): void {
+/** Shown when the player descends from the deepest dungeon level (15) — see ../dungeon-levels-stairs-design.md. */
+export function showVictory(g: Game, vp: Viewport) {
+  g.log.msg("YOU WIN");
+  drawEndScreen(g, vp, "win");
+}
+
+function drawEndScreen(g: Game, vp: Viewport, kind: RoundEndKind): void {
   vp.draw(g);
-  vp.drawCentered(
-    Math.floor(vp.height / 2),
-    "%c{yellow}%b{#400}[%c{red}GAME OVER%c{yellow}]%b{}%c{}"
-  );
-  vp.drawCentered(Math.floor(vp.height / 2) + 1, "[[ENTER]] restart   [[P]] view message log");
+  const mid = Math.floor(vp.height / 2);
+  vp.drawCentered(mid, END_SCREEN_LABEL[kind]);
+
+  const summaryLines = kind === "win"
+    ? wrapText(`${g.charName}, level ${g.xp.level}, wins!`, vp.width - 4)
+    : [
+        ...wrapText(`${g.charName}, level ${g.xp.level}`, vp.width - 4),
+        ...wrapText(g.deathCause, vp.width - 4),
+      ];
+  summaryLines.forEach((line, i) => vp.drawCentered(mid + 1 + i, `%c{#ccc}${line}%c{}`));
+
+  vp.drawCentered(mid + 2 + summaryLines.length, "[[ENTER]] restart");
+  vp.drawCentered(mid + 3 + summaryLines.length, "[[P]] view message log");
 }
 
 /**
- * Waits for the player to restart after death (see {@link showGameOver}),
- * letting them toggle 'p'/'P' any number of times to read the full message
- * log — to see how they died — and back to the death screen, before
- * finally pressing Enter. Wired from `main()` (`src/index.ts`).
+ * Waits for the player to restart after the round ends in death or victory
+ * (see {@link showGameOver}/{@link showVictory}), letting them toggle
+ * 'p'/'P' any number of times to read the full message log and back to the
+ * end screen, before finally pressing Enter. Wired from `main()`
+ * (`src/index.ts`).
  */
-export async function waitAfterGameOver(g: Game, vp: Viewport): Promise<void> {
+export async function waitAfterRoundEnd(g: Game, vp: Viewport, kind: RoundEndKind): Promise<void> {
   let onLog = false;
+  const backLabel = kind === "win" ? "back to victory screen" : "back to game over screen";
   while (true) {
     const key = (await inputKey()).key;
     if (key === "Enter") return;
     if (key === "p" || key === "P") {
       onLog = !onLog;
-      if (onLog) drawLogScreen(g, vp, "[[P]] back to game over screen   [[ENTER]] restart");
-      else drawGameOverScreen(g, vp);
+      if (onLog) drawLogScreen(g, vp, `[[P]] ${backLabel}   [[ENTER]] restart`);
+      else drawEndScreen(g, vp, kind);
     }
   }
 }

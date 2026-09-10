@@ -31,7 +31,7 @@ export function tickMimicCurse(game: Game): void {
     const entry = mimicked[i];
     if (lastPlayerMove) {
       const dest: Pos = { x: entry.mob.x + lastPlayerMove.x, y: entry.mob.y + lastPlayerMove.y };
-      if (game.map.inBounds(dest) && walkable(game.map.get(dest)) && !occupant(game, dest)) {
+      if (game.curMap().inBounds(dest) && walkable(game.curMap().get(dest)) && !occupant(game, dest)) {
         entry.mob.x = dest.x;
         entry.mob.y = dest.y;
       }

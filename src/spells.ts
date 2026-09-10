@@ -236,8 +236,8 @@ async function castKnockbackBlast(game: Game, viewport: Viewport): Promise<boole
     dealSpellDamage(game, game.player, mob, 4, "blasted");
     for (let i = 0; i < 3; i++) {
       const dest: Pos = { x: mob.x + delta.x, y: mob.y + delta.y };
-      if (!game.map.inBounds(dest) || game.map.get(dest) === Tile.Wall) break;
-      if (game.map.Q.mobs.some((m) => m !== mob && m.x === dest.x && m.y === dest.y)) break;
+      if (!game.curMap().inBounds(dest) || game.curMap().get(dest) === Tile.Wall) break;
+      if (game.curMap().Q.mobs.some((m) => m !== mob && m.x === dest.x && m.y === dest.y)) break;
       mob.x = dest.x; mob.y = dest.y;
     }
   }
@@ -302,7 +302,7 @@ async function castPolymorph(game: Game, viewport: Viewport): Promise<boolean> {
   scheduleDelayed(game, POLYMORPH_DURATION, (g) => {
     const stillPolymorphed = polymorphed.get(target);
     polymorphed.delete(target);
-    if (!stillPolymorphed || !g.map.Q.mobs.includes(target)) return; // died, or was already reverted, while transformed.
+    if (!stillPolymorphed || !g.curMap().Q.mobs.includes(target)) return; // died, or was already reverted, while transformed.
     target.name = stillPolymorphed.name;
     target.t = stillPolymorphed.tile;
     g.log.msg(`the critter reverts back into ${stillPolymorphed.name}`);
@@ -340,7 +340,7 @@ async function castBarrierWall(game: Game, viewport: Viewport): Promise<boolean>
   const center: Pos = { x: game.player.x + delta.x, y: game.player.y + delta.y };
   for (const off of [-1, 0, 1]) {
     const p: Pos = { x: center.x + perp.x * off, y: center.y + perp.y * off };
-    if (game.map.inBounds(p)) layTemporaryTile(game, p, Tile.Wall, 8);
+    if (game.curMap().inBounds(p)) layTemporaryTile(game, p, Tile.Wall, 8);
   }
   game.log.msg("a wall of force rises");
   return true;
@@ -389,7 +389,7 @@ async function castBlink(game: Game, viewport: Viewport): Promise<boolean> {
   const path = await animateProjectile(game, viewport, game.player, delta, {
     glyph: "@", color: "#fff", maxSteps: 5, stepMs: 20, stopOnMob: true,
   });
-  const landing = [...path].reverse().find((p) => !game.map.Q.mobs.some((m) => m.x === p.x && m.y === p.y));
+  const landing = [...path].reverse().find((p) => !game.curMap().Q.mobs.some((m) => m.x === p.x && m.y === p.y));
   if (landing) { game.player.x = landing.x; game.player.y = landing.y; }
   return true;
 }
@@ -491,7 +491,7 @@ async function castNecroticReanimation(game: Game, viewport: Viewport): Promise<
   const stats = { name: target.name, dmg: Math.max(1, Math.round(target.dmg / 2)), hp: Math.max(1, Math.round(target.maxhp / 2)), t: target.t };
   target.hp -= finishingBlow;
   game.log.msg(`${target.name} collapses, its corpse rising under your will`);
-  game.map.Q.remove(target);
+  game.curMap().Q.remove(target);
   const raised = summonAlly(game, `undead ${stats.name}`, stats.t, stats.hp, stats.dmg, 30);
   return true;
 }
@@ -527,7 +527,7 @@ async function castFlameWall(game: Game, viewport: Viewport): Promise<boolean> {
   const center: Pos = { x: game.player.x + delta.x * 2, y: game.player.y + delta.y * 2 };
   for (const off of [-1, 0, 1]) {
     const p: Pos = { x: center.x + perp.x * off, y: center.y + perp.y * off };
-    if (!game.map.inBounds(p)) continue;
+    if (!game.curMap().inBounds(p)) continue;
     spawnFieldEffect(game, {
       pos: p, radius: 0, turnsLeft: 6, glyph: "^", color: "#f60",
       caster: game.player, dmgPerTurn: 5, verb: "burned",
@@ -543,7 +543,7 @@ async function castIcePlatform(game: Game, viewport: Viewport): Promise<boolean>
 
   for (let i = 1; i <= 4; i++) {
     const p: Pos = { x: game.player.x + delta.x * i, y: game.player.y + delta.y * i };
-    if (!game.map.inBounds(p)) break;
+    if (!game.curMap().inBounds(p)) break;
     layTemporaryTile(game, p, Tile.Floor, 10);
   }
   game.log.msg("a bridge of ice forms");
@@ -668,7 +668,7 @@ async function castTimeStop(game: Game, viewport: Viewport): Promise<boolean> {
   if (!pay(game, 55)) return false;
   await flashRadius(game, viewport, game.player, 30, ".", "#fff", 120);
   let count = 0;
-  for (const mob of game.map.Q.mobs) {
+  for (const mob of game.curMap().Q.mobs) {
     if (isPly(mob)) continue;
     addStatus(mob, StatusKind.Stun, 3);
     count++;
@@ -725,7 +725,7 @@ async function castEchoStrike(game: Game, viewport: Viewport): Promise<boolean> 
   const dmg = 10;
   dealSpellDamage(game, game.player, target, dmg, "struck");
   scheduleDelayed(game, 2, (g) => {
-    if (g.map.Q.mobs.includes(target)) dealSpellDamage(g, g.player, target, Math.round(dmg * 0.5), "echoed");
+    if (g.curMap().Q.mobs.includes(target)) dealSpellDamage(g, g.player, target, Math.round(dmg * 0.5), "echoed");
   });
   return true;
 }
@@ -856,8 +856,8 @@ async function castFearWard(game: Game, viewport: Viewport): Promise<boolean> {
     const dy = Math.sign(mob.y - game.player.y);
     for (let i = 0; i < 2; i++) {
       const dest: Pos = { x: mob.x + dx, y: mob.y + dy };
-      if (!game.map.inBounds(dest) || game.map.get(dest) === Tile.Wall) break;
-      if (game.map.Q.mobs.some((m) => m !== mob && m.x === dest.x && m.y === dest.y)) break;
+      if (!game.curMap().inBounds(dest) || game.curMap().get(dest) === Tile.Wall) break;
+      if (game.curMap().Q.mobs.some((m) => m !== mob && m.x === dest.x && m.y === dest.y)) break;
       mob.x = dest.x; mob.y = dest.y;
     }
   }
@@ -907,8 +907,8 @@ async function castPuppetString(game: Game, viewport: Viewport): Promise<boolean
   if (!delta) return true; // mana already spent; the puppetry fumbles.
 
   const dest: Pos = { x: target.x + delta.x, y: target.y + delta.y };
-  if (game.map.inBounds(dest) && game.map.get(dest) !== Tile.Wall &&
-      !game.map.Q.mobs.some((m) => m !== target && m.x === dest.x && m.y === dest.y)) {
+  if (game.curMap().inBounds(dest) && game.curMap().get(dest) !== Tile.Wall &&
+      !game.curMap().Q.mobs.some((m) => m !== target && m.x === dest.x && m.y === dest.y)) {
     target.x = dest.x; target.y = dest.y;
     game.log.msg(`${target.name} is forced to step`);
   }
@@ -1003,7 +1003,7 @@ async function castBacktrack(game: Game, viewport: Viewport): Promise<boolean> {
   if (!past) { game.log.msg("not enough of a past to return to"); return false; }
   if (!pay(game, 10)) return false;
 
-  if (!game.map.Q.mobs.some((m) => m !== game.player && m.x === past.x && m.y === past.y)) {
+  if (!game.curMap().Q.mobs.some((m) => m !== game.player && m.x === past.x && m.y === past.y)) {
     game.player.x = past.x; game.player.y = past.y;
     game.log.msg("you snap back to where you stood");
   } else {
@@ -1027,7 +1027,7 @@ async function castGrappleHook(game: Game, viewport: Viewport): Promise<boolean>
   const path = await animateProjectile(game, viewport, game.player, delta, {
     glyph: "=", color: "#aa8", maxSteps: 10, stepMs: 20, stopOnMob: true,
   });
-  const landing = [...path].reverse().find((p) => !game.map.Q.mobs.some((m) => m.x === p.x && m.y === p.y));
+  const landing = [...path].reverse().find((p) => !game.curMap().Q.mobs.some((m) => m.x === p.x && m.y === p.y));
   if (landing) { game.player.x = landing.x; game.player.y = landing.y; }
   return true;
 }
@@ -1043,7 +1043,7 @@ async function castMappersEye(game: Game, viewport: Viewport): Promise<boolean> 
   if (!pay(game, 9)) return false;
   await flashRadius(game, viewport, game.player, 6, ".", "#8f8");
   const enemies = mobsInRadius(game, game.player, 6, game.player).length;
-  const items = game.map.objs.filter((o) => {
+  const items = game.curMap().objs.filter((o) => {
     const dx = o.x - game.player.x, dy = o.y - game.player.y;
     return dx * dx + dy * dy <= 36;
   }).length;
@@ -1078,7 +1078,7 @@ async function castSwarmMother(game: Game, viewport: Viewport): Promise<boolean>
   const mother = summonAlly(game, "swarm mother", Tile.Wasp, 26, 3, 30);
   if (mother) {
     scheduleDelayed(game, 4, function birth(g: Game) {
-      if (!g.map.Q.mobs.includes(mother)) return;
+      if (!g.curMap().Q.mobs.includes(mother)) return;
       summonAlly(g, "swarmling", Tile.Ant, 4, 1, 15);
       scheduleDelayed(g, 4, birth);
     });
@@ -1093,8 +1093,8 @@ async function castBoundBlade(game: Game, viewport: Viewport): Promise<boolean> 
   if (blade) {
     let lastHp = game.player.hp;
     scheduleDelayed(game, 1, function watch(g: Game) {
-      if (!g.map.Q.mobs.includes(blade)) return;
-      if (g.player.hp < lastHp) { g.map.Q.remove(blade); g.log.msg("the bound blade shatters as you take damage"); return; }
+      if (!g.curMap().Q.mobs.includes(blade)) return;
+      if (g.player.hp < lastHp) { g.curMap().Q.remove(blade); g.log.msg("the bound blade shatters as you take damage"); return; }
       lastHp = g.player.hp;
       scheduleDelayed(g, 1, watch);
     });
@@ -1115,7 +1115,7 @@ async function castVulturePact(game: Game, viewport: Viewport): Promise<boolean>
   const vulture = summonAlly(game, "vulture", Tile.Bat, 10, 3, Infinity);
   if (vulture) {
     scheduleDelayed(game, 5, function grow(g: Game) {
-      if (!g.map.Q.mobs.includes(vulture)) return;
+      if (!g.curMap().Q.mobs.includes(vulture)) return;
       vulture.dmg += 1; vulture.maxhp += 2; vulture.hp += 2;
       scheduleDelayed(g, 5, grow);
     });
@@ -1158,7 +1158,7 @@ async function castOvergrowth(game: Game, viewport: Viewport): Promise<boolean> 
   const center: Pos = { x: game.player.x + delta.x * 2, y: game.player.y + delta.y * 2 };
   for (const off of [-1, 0, 1]) {
     const p: Pos = { x: center.x + perp.x * off, y: center.y + perp.y * off };
-    if (game.map.inBounds(p)) layTemporaryTile(game, p, Tile.Wall, 12);
+    if (game.curMap().inBounds(p)) layTemporaryTile(game, p, Tile.Wall, 12);
   }
   game.log.msg("thick growth rises, blocking sight");
   return true;
@@ -1198,7 +1198,7 @@ async function castBrambleBridge(game: Game, viewport: Viewport): Promise<boolea
 
   for (let i = 1; i <= 5; i++) {
     const p: Pos = { x: game.player.x + delta.x * i, y: game.player.y + delta.y * i };
-    if (!game.map.inBounds(p)) break;
+    if (!game.curMap().inBounds(p)) break;
     layTemporaryTile(game, p, Tile.Floor, 12);
   }
   game.log.msg("vines knit together into a bridge");
@@ -1245,7 +1245,7 @@ async function castDoomClock(game: Game, viewport: Viewport): Promise<boolean> {
   if (!pay(game, 16)) return false;
   game.log.msg(`a countdown appears over ${target.name}'s head`);
   scheduleDelayed(game, 5, (g) => {
-    if (g.map.Q.mobs.includes(target)) dealSpellDamage(g, g.player, target, 35, "detonated");
+    if (g.curMap().Q.mobs.includes(target)) dealSpellDamage(g, g.player, target, 35, "detonated");
   });
   return true;
 }

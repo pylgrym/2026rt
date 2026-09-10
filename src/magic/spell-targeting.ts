@@ -88,7 +88,7 @@ export async function animateProjectile(
   for (let step = 0; step < maxSteps; step++) {
     pos.x += delta.x;
     pos.y += delta.y;
-    if (!game.map.inBounds(pos) || !walkable(game.map.get(pos))) break;
+    if (!game.curMap().inBounds(pos) || !walkable(game.curMap().get(pos))) break;
 
     path.push({ x: pos.x, y: pos.y });
     viewport.draw(game);
@@ -113,7 +113,7 @@ function distSq(a: Readonly<Pos>, b: Readonly<Pos>): number {
 /** Every mob (excluding `exclude`, if given) within `radius` tiles of `center`. */
 export function mobsInRadius(game: Game, center: Readonly<Pos>, radius: number, exclude?: Mob): Mob[] {
   const rSq = radius * radius;
-  return game.map.Q.mobs.filter((m) => m !== exclude && distSq(m, center) <= rSq);
+  return game.curMap().Q.mobs.filter((m) => m !== exclude && distSq(m, center) <= rSq);
 }
 
 /** Briefly flashes `glyph` across every tile within `radius` of `center`, for AoE feedback. */
@@ -192,7 +192,7 @@ export async function fireAtFirstHit(
 export function nearestVisibleMob(game: Game, from: Readonly<Pos>, exclude: Mob, maxRadius: number): Mob | null {
   let best: Mob | null = null;
   let bestDist = Infinity;
-  for (const m of game.map.Q.mobs) {
+  for (const m of game.curMap().Q.mobs) {
     if (m === exclude) continue;
     const d = distSq(m, from);
     if (d <= maxRadius * maxRadius && d < bestDist) { bestDist = d; best = m; }

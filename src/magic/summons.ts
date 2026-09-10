@@ -8,7 +8,7 @@ import { isIncapacitated, rollSlowSkip } from "./status-effects";
  * Player-controlled minions (Summon Skeleton/Golem, Summon Swarm, Elemental
  * Familiar, Necrotic Reanimation, Army of the Dead — see ../spells.md's
  * Summoning section). Summons are ordinary {@link Mob}s dropped into
- * `game.map.Q` like any monster, but flagged in this module's `WeakSet` so
+ * `game.curMap().Q` like any monster, but flagged in this module's `WeakSet` so
  * the turn loop (./gameloop.ts) routes their turn through {@link allyTurn}
  * here instead of the hostile AI in ./sneaky-ai.ts, and so the player can
  * walk through/swap with them instead of attacking them (./move-player.ts).
@@ -35,7 +35,7 @@ export function summonAlly(game: Game, name: string, glyph: T_TileLike, hp: numb
   const mob: Mob = { x: pos.x, y: pos.y, t: glyph, name, hp, maxhp: hp, dmg };
   allies.add(mob);
   lifespans.set(mob, lifespanTurns);
-  game.map.Q.push(mob);
+  game.curMap().Q.push(mob);
   return mob;
 }
 
@@ -54,7 +54,7 @@ function nearestFreeTile(game: Game, near: Readonly<Pos>): Pos | null {
   ];
   for (const o of offsets) {
     const p: Pos = { x: near.x + o.x, y: near.y + o.y };
-    if (game.map.inBounds(p) && walkable(game.map.get(p)) && !occupant(game, p)) return p;
+    if (game.curMap().inBounds(p) && walkable(game.curMap().get(p)) && !occupant(game, p)) return p;
   }
   return null;
 }
@@ -65,7 +65,7 @@ const SUMMON_SIGHT_SQ = 10 * 10;
 function nearestHostile(game: Game, from: Readonly<Pos>): Mob | null {
   let best: Mob | null = null;
   let bestD = Infinity;
-  for (const m of game.map.Q.mobs) {
+  for (const m of game.curMap().Q.mobs) {
     if (isAlly(m) || m.t === Tile.Ply) continue;
     const d = distSq(m, from);
     if (d <= SUMMON_SIGHT_SQ && d < bestD) { bestD = d; best = m; }
@@ -93,8 +93,8 @@ export function allyTurn(game: Game, mob: Mob): void {
 function stepToward(game: Game, mob: Mob, target: Readonly<Pos>): void {
   const dx = Math.sign(target.x - mob.x);
   const dy = Math.sign(target.y - mob.y);
-  const dest: Pos = { x: wrap(mob.x + dx, game.map.width), y: wrap(mob.y + dy, game.map.height) };
-  if (!walkable(game.map.get(dest))) return;
+  const dest: Pos = { x: wrap(mob.x + dx, game.curMap().width), y: wrap(mob.y + dy, game.curMap().height) };
+  if (!walkable(game.curMap().get(dest))) return;
   if (occupant(game, dest)) return; // never step onto an occupied tile — including the player's.
   mob.x = dest.x;
   mob.y = dest.y;
@@ -106,13 +106,13 @@ function stepToward(game: Game, mob: Mob, target: Readonly<Pos>): void {
  * ./status-effects.ts's tickStatuses.
  */
 export function tickSummonLifespans(game: Game): void {
-  for (const mob of [...game.map.Q.mobs]) {
+  for (const mob of [...game.curMap().Q.mobs]) {
     if (!isAlly(mob)) continue;
     const left = lifespans.get(mob);
     if (left === undefined || !isFinite(left)) continue;
     const next = left - 1;
     if (next <= 0) {
-      game.map.Q.remove(mob);
+      game.curMap().Q.remove(mob);
       game.log.msg(`your ${mob.name} fades away`);
     } else {
       lifespans.set(mob, next);

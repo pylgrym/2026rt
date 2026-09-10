@@ -49,6 +49,9 @@ export const Tile = {
   Xerus: 27,
   Yak: 28,
   Zebu: 29,
+  // Stairs between dungeon levels; see ../dungeon-levels-stairs-design.md.
+  StairUp: 30,
+  StairDown: 31,
 } as const;
 
 // we should partition these two types.
@@ -132,8 +135,8 @@ export function walkable(tile: T_Tile): boolean {
 }
 
 /** Default map dimensions, in tiles. */
-export const MAP_WIDTH = 210;
-export const MAP_HEIGHT = 210;
+export const MAP_WIDTH = 420;
+export const MAP_HEIGHT = 420;
 
 /**
  * A 2-dimensional grid of {@link Tile}s backed by a single flat array.

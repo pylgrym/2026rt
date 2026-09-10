@@ -29,20 +29,28 @@ export function mapWidth(viewport: Viewport): number {
 /** Row 0 stays reserved for the message log (see ./msglog.ts); shifted one further to give the stats box a blank row of breathing room below it. */
 const STATS_TOP = 2;
 
+/** When `false`, the "HL" out-of-combat-heal countdown stat is left out of the HUD entirely. */
+export const SHOW_HEAL_COUNTER = false;
+/** When `false`, the "MP" mana stat is left out of the HUD entirely. Purely cosmetic — mana still works, see ./spells.ts and ./magic/mana.ts; the spellbook screen shows it regardless. */
+export const SHOW_MANA = false;
+
 /** Draws the vertical HUD: a stats box, then two full-height health bars. */
 export function drawHud(viewport: Viewport, game: Game): void {
   const statsX = mapWidth(viewport) + GAP_WIDTH;
   const { player, xp, oocHeal, lastFoe } = game;
 
-  // Each stat is a label row followed by one or more value rows. HP gets
-  // two: current hp (suffixed with `/`) then maxhp on the line under it.
+  // Each stat is a label row followed by one or more value rows. HP and XP
+  // both get two: the current value (suffixed with `/`) then the max on the
+  // line under it.
   const stats: [string, string[]][] = [
+    ["DL", [`${game.dungeon.curLevel}`]],
+    ["TN", [`${game.dungeon.curLevelTurns()}`]],
     ["LV", [`${xp.level}`]],
-    ["XP", [`${xp.xp}/${XP_PER_LEVEL}`]],
+    ["XP", [`${xp.xp}/`, `${XP_PER_LEVEL}`]],
     ["HP", [`${player.hp}/`, `${player.maxhp}`]],
-    ["MP", [`${game.mana.mana}/`, `${game.mana.maxmana}`]],
+    ...(SHOW_MANA ? [["MP", [`${game.mana.mana}/`, `${game.mana.maxmana}`]] as [string, string[]]] : []),
     ["DM", [`${player.dmg}`]],
-    ["HL", [`${oocHeal.countdown}+${oocHeal.healAmount}`]],
+    ...(SHOW_HEAL_COUNTER ? [["HL", [`${oocHeal.countdown}+${oocHeal.healAmount}`]] as [string, string[]]] : []),
   ];
   let row = STATS_TOP;
   for (const [label, values] of stats) {

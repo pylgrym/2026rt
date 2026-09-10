@@ -5,7 +5,7 @@ import { moodColor } from "./mood";
 
 /** The mob occupying `at`, or `null` if the tile is free. */
 export function occupant(game: Game, at: Readonly<Pos>): Mob | null {
-  return game.map.Q.find((mob) => mob.x === at.x && mob.y === at.y) ?? null;
+  return game.curMap().Q.find((mob) => mob.x === at.x && mob.y === at.y) ?? null;
 }
 
 /**
@@ -18,7 +18,7 @@ export function occupant(game: Game, at: Readonly<Pos>): Mob | null {
  */
 export function drawMobs(viewport: Viewport, game: Game, origin: Readonly<Pos>, drawWidth: number): void {
   const { display, height } = viewport;
-  for (const mob of game.map.Q.mobs) {
+  for (const mob of game.curMap().Q.mobs) {
     const { x, y, t } = mob;
     const sx = x - origin.x;
     const sy = y - origin.y;

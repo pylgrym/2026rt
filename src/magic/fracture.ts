@@ -28,7 +28,7 @@ export function onFractureHit(mob: Mob): number {
 
 /** Resets any fractured mob's stacks once its no-hit cooldown expires. Call once per round. */
 export function tickFracture(game: Game): void {
-  for (const mob of game.map.Q.mobs) {
+  for (const mob of game.curMap().Q.mobs) {
     const entry = fractured.get(mob);
     if (!entry) continue;
     if (--entry.cooldown <= 0) { entry.stacks = 0; entry.cooldown = entry.resetTurns; }

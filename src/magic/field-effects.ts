@@ -76,16 +76,16 @@ function pullToward(game: Game, mob: Mob, center: Readonly<Pos>, strength: numbe
   const dx = Math.sign(center.x - mob.x);
   const dy = Math.sign(center.y - mob.y);
   const dest: Pos = { x: mob.x + dx, y: mob.y + dy };
-  if (!game.map.inBounds(dest) || !walkable(game.map.get(dest))) return;
-  if (game.map.Q.mobs.some((m) => m !== mob && m.x === dest.x && m.y === dest.y)) return;
+  if (!game.curMap().inBounds(dest) || !walkable(game.curMap().get(dest))) return;
+  if (game.curMap().Q.mobs.some((m) => m !== mob && m.x === dest.x && m.y === dest.y)) return;
   mob.x = dest.x;
   mob.y = dest.y;
 }
 
 /** Temporarily overrides the tile at `pos` (e.g. Ice Platform bridging a wall), reverting when the effect expires. */
 export function layTemporaryTile(game: Game, pos: Readonly<Pos>, tile: T_Tile, turns: number): void {
-  const original = game.map.get(pos);
-  game.map.set(pos, tile);
+  const original = game.curMap().get(pos);
+  game.curMap().set(pos, tile);
   spawnFieldEffect(game, {
     pos: { x: pos.x, y: pos.y },
     radius: 0,
@@ -95,7 +95,7 @@ export function layTemporaryTile(game: Game, pos: Readonly<Pos>, tile: T_Tile, t
     caster: game.player,
     dmgPerTurn: 0,
     verb: "",
-    onExpire: (g) => g.map.set(pos, original),
+    onExpire: (g) => g.curMap().set(pos, original),
   });
 }
 

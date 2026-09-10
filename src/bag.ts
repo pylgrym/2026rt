@@ -2,7 +2,7 @@ import type { T_ObjType, Pos, ItemInstance } from "./dmap";
 import type { Game } from "./game";
 import type { Viewport } from "./viewport";
 import { inputKey } from "./input";
-import { objInfo, dropObject, useObjectType } from "./objs";
+import { objInfo, objName, dropObject, useObjectType } from "./objs";
 import { itemTypeInfo, ItemKind } from "./item-types";
 import { useItem, throwPotion, rechargeItem } from "./items-act";
 import { showItemExamine } from "./item-art";
@@ -61,12 +61,17 @@ const ACTION_KEYS: Record<string, BagAction> = {
   r: "recharge", R: "recharge",
 };
 
-/** A bag entry's display line, e.g. "wand of fireballs [3]" for a charged item, plain name otherwise. */
+/**
+ * A bag entry's display label, e.g. "[3] wand:fireballs" for a charged
+ * item, plain (bare, un-prefixed) name otherwise — the item's poetic colour
+ * name is dropped from the text since the line itself is drawn in that
+ * colour instead (see {@link drawBagMenu}).
+ */
 function describeItem(item: ItemInstance): string {
-  const info = objInfo(item.type);
+  const name = objName(item.type);
   const kindInfo = itemTypeInfo(item.type);
   const charged = kindInfo && (kindInfo.kind === ItemKind.Wand || kindInfo.kind === ItemKind.Staff);
-  return charged ? `[${item.charges ?? 0}] ${info.name}` : info.name;
+  return charged ? `[${item.charges ?? 0}] ${name}` : name;
 }
 
 /**
@@ -81,7 +86,8 @@ function drawBagMenu(viewport: Viewport, game: Game, footer: string): void {
     display.drawText(0, 2, "(empty)");
   } else {
     game.bag.forEach((item, i) => {
-      display.drawText(0, 2 + i, `${letterFor(i)}) ${describeItem(item)}`);
+      const color = objInfo(item.type).color;
+      display.drawText(0, 2 + i, `%c{${color}}${letterFor(i)}) ${describeItem(item)}%c{}`);
     });
   }
   display.drawText(0, height - 1, footer);
@@ -174,7 +180,7 @@ async function performAction(game: Game, viewport: Viewport, action: BagAction, 
     case "drop": {
       game.bag.splice(index, 1);
       dropObject(game, game.player, item.type, item.charges);
-      game.log.msg(`you drop ${objInfo(item.type).name}`);
+      game.log.msg(`you drop ${objName(item.type)}`);
       return true;
     }
 

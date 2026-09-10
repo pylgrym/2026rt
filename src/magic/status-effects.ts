@@ -262,8 +262,8 @@ export function breakSleepOnDamage(mob: Mob): void {
  * round from the game loop, alongside {@link ./ooc-heal.ts}'s tickOocHeal.
  */
 export function tickStatuses(game: Game): void {
-  // Snapshot: a DoT death can remove a mob from game.map.Q.mobs mid-loop.
-  for (const mob of [...game.map.Q.mobs]) {
+  // Snapshot: a DoT death can remove a mob from game.curMap().Q.mobs mid-loop.
+  for (const mob of [...game.curMap().Q.mobs]) {
     const entries = statusesByMob.get(mob);
     if (!entries || entries.length === 0) continue;
 
@@ -277,13 +277,14 @@ export function tickStatuses(game: Game): void {
       }
       if (entry.kind === StatusKind.Poison || entry.kind === StatusKind.Curse) {
         mob.hp -= entry.magnitude;
+        if (isPly(mob)) game.deathCause = entry.kind === StatusKind.Poison ? "poison" : "a curse";
         game.log.msg(`${mobLabel(mob)} suffers ${entry.magnitude} from ${entry.kind}`);
         if (mob.hp <= 0 && preventDeathOnce(mob)) {
           mob.hp = 1;
           game.log.msg(`${mobLabel(mob)} narrowly survives!`);
         } else if (mob.hp <= 0 && !isPly(mob)) {
           game.log.msg(`${mobLabel(mob)} dies`);
-          game.map.Q.remove(mob);
+          game.curMap().Q.remove(mob);
           awardKillXp(game, mob);
           killDrop(game, mob, levelOfTile(mob.t));
         }

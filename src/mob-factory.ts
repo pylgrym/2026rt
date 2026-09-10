@@ -1,5 +1,5 @@
 import * as ROT from "rot-js";
-import { DMap, Tile, T_Tile, Mob, walkable, generateDungeon, type Pos } from "./dmap";
+import { DMap, Tile, T_Tile, Mob, walkable, generateDungeon, MAP_WIDTH, MAP_HEIGHT, type Pos } from "./dmap";
 import { Mood } from "./mood";
 import { AiState } from "./ai-types";
 
@@ -89,7 +89,7 @@ export function pickSpawnFirstRoom(rooms: ReturnType<typeof generateDungeon>): P
  * edge, then the left/right edges of each ring) up to `maxRadius` tiles
  * out. Used to find the closest vacant tile to a target point.
  */
-function* spiralPositions(cx: number, cy: number, maxRadius: number): Generator<Pos> {
+export function* spiralPositions(cx: number, cy: number, maxRadius: number): Generator<Pos> {
   yield { x: cx, y: cy };
   for (let r = 1; r <= maxRadius; r++) {
     for (let x = cx - r; x <= cx + r; x++) {
@@ -119,38 +119,75 @@ export function pickSpawnCenter(map: DMap): Pos {
 }
 
 /**
+ * The centre-to-corner radius of the *full* (level-15) dungeon extent —
+ * the fixed yardstick every level's monster-level radius bands are measured
+ * against, not each map's own (possibly much smaller) size. See
+ * ../dungeon-levels-stairs-design.md: a small early-level map must only
+ * ever reach the low monster levels, because its own centre-to-edge radius
+ * covers just the innermost slice of this fixed scale.
+ */
+const FULL_MAX_RADIUS = Math.hypot(MAP_WIDTH / 2, MAP_HEIGHT / 2);
+
+/**
+ * The radius scale is divided into {@link MAX_LEVEL} monster rings *plus one
+ * extra, innermost ring that never gets any monsters at all* — a mob-free
+ * safe zone around the centre (where the player spawns). So level 1 (ant)
+ * occupies the *second* ring from the centre, not the first; level 26 still
+ * ends exactly at {@link FULL_MAX_RADIUS}, same as before this ring got
+ * inserted.
+ */
+const RING_COUNT = MAX_LEVEL + 1;
+
+/**
+ * How many distinct monster levels (0-26) a map whose centre-to-edge reaches
+ * `r`, measured against the fixed {@link FULL_MAX_RADIUS} yardstick, should
+ * ever spawn. A small early-level map's own extent covers just the innermost
+ * slice of that fixed scale, so it reaches only a handful of levels (or, if
+ * its extent doesn't even clear the empty first ring, none at all) — the "a
+ * small dungeon might only get the a and b monsters" behaviour the design
+ * calls for. This is purely a *pacing* decision (which levels exist on this
+ * map at all); {@link addMobNests} handles *how tiles are divided* among
+ * those levels separately, so the two concerns can't be tangled together the
+ * way they previously were.
+ */
+function reachableLevelCount(r: number): number {
+  const ringsReached = Math.ceil((r / FULL_MAX_RADIUS) * RING_COUNT);
+  return Math.min(MAX_LEVEL, Math.max(0, ringsReached - 1)); // -1: the innermost ring is never a monster level.
+}
+
+/**
  * Scatters mob nests across the map by turning vacant floor tiles into
- * {@link Tile.Nest}s, and spawns exactly `perLevelCount` monsters of
- * *every* level 1-26 (so `perLevelCount * MAX_LEVEL` monsters in total,
- * as long as the dungeon has that many floor tiles to spare).
+ * {@link Tile.Nest}s, and spawns up to `perLevelCount` monsters of each
+ * level 1-26 that this map's extent actually reaches, leaving the innermost
+ * ring around the centre — see {@link RING_COUNT} — free of monsters.
  *
- * Every candidate floor tile is ranked by its distance from the map's
- * centre, then that ranked list is sliced into `MAX_LEVEL` equal-sized
- * chunks: the nearest chunk (where the player spawns) becomes the level-1
- * pool, the farthest chunk the level-26 pool, and so on in between. Levels
- * then draw `perLevelCount` random nests from their own chunk.
- *
- * A fixed geometric radius cutoff (e.g. "level 26 = beyond 90% of the
- * theoretical corner-to-corner distance") was tried first and rejected: a
- * rot.js dungeon is mostly wall, its rooms land wherever the generator
- * happens to put them, and nothing guarantees any floor exists that close
- * to the actual corners — that approach could leave the highest levels
- * with zero candidates. Ranking by distance and slicing into equal chunks
- * instead adapts to whatever floor the generated dungeon actually has, so
- * every level's chunk is guaranteed a fair (roughly 1/26th) share of it,
- * however that floor happens to be laid out. See ../progression.md.
+ * Two separate steps, deliberately not conflated:
+ *  1. {@link reachableLevelCount} decides *how many* levels this map reaches
+ *     at all, from its own centre-to-corner radius against the fixed
+ *     dungeon-wide yardstick — so a tiny early map still only ever gets the
+ *     low levels, never something like level 26 shoved into a corner.
+ *  2. Every candidate floor tile is ranked by distance from centre and that
+ *     ranked list is sliced into `reachableLevelCount + 1` equal-*sized*
+ *     chunks (the nearest chunk is the empty safe zone, the next is level 1,
+ *     and so on outward) — so each reached level gets a fair, roughly-equal
+ *     share of whatever floor this specific dungeon actually generated,
+ *     instead of an idealised disk's area (which starves the low levels,
+ *     since a disk's area shrinks toward its centre).
  */
 export function addMobNests(
   map: DMap,
   perLevelCount: number
 ): void {
   const center = mapCenter(map);
+  const corner: Pos = { x: map.width - 1, y: map.height - 1 };
+  const maxLevel = reachableLevelCount(Math.hypot(corner.x - center.x, corner.y - center.y));
+  if (maxLevel === 0) return; // this map's extent doesn't even clear the empty innermost ring.
 
-  // Gather every walkable, unoccupied floor tile as a nest candidate,
-  // paired with its distance from the centre. The player already picked
-  // their spot (see Game's constructor, which places the player before
-  // calling this) and occupies map.Q, so exclude any tile already taken by
-  // them — or by any other mob — from consideration.
+  // Gather every walkable, unoccupied floor tile as a nest candidate, paired
+  // with its distance from the centre. The player already picked their spot
+  // (see Game's constructor, which places the player before calling this)
+  // and occupies map.Q, so exclude any tile already taken by them — or by
+  // any other mob — from consideration.
   const candidates: { pos: Pos; r: number }[] = [];
   const at: Pos = { x: 0, y: 0 };
   for (let y = 0; y < map.height; y++) {
@@ -164,9 +201,10 @@ export function addMobNests(
   candidates.sort((a, b) => a.r - b.r);
 
   const n = candidates.length;
-  for (let level = 1; level <= MAX_LEVEL; level++) {
-    const lo = Math.floor(((level - 1) * n) / MAX_LEVEL);
-    const hi = Math.floor((level * n) / MAX_LEVEL);
+  const totalChunks = maxLevel + 1; // +1: chunk 0 is the empty innermost ring, skipped below.
+  for (let level = 1; level <= maxLevel; level++) {
+    const lo = Math.floor((level * n) / totalChunks);
+    const hi = Math.floor(((level + 1) * n) / totalChunks);
     // ROT.RNG.shuffle returns a NEW shuffled array; it does not mutate its
     // argument.
     const chunk = ROT.RNG.shuffle(candidates.slice(lo, hi).map((c) => c.pos));

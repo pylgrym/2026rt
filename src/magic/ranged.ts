@@ -70,7 +70,7 @@ async function animateMissile(game: Game, viewport: Viewport, delta: Readonly<Po
   for (let step = 0; step < MAX_STEPS; step++) {
     pos.x += delta.x;
     pos.y += delta.y;
-    if (!game.map.inBounds(pos) || !walkable(game.map.get(pos))) break;
+    if (!game.curMap().inBounds(pos) || !walkable(game.curMap().get(pos))) break;
 
     viewport.draw(game);
     drawMissile(viewport, game, pos);
